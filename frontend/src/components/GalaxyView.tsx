@@ -53,6 +53,7 @@ const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
 const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2); ctx.fill()
 })
+function hash(str: string) { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) } return h >>> 0 }
 /** a matte sphere: one soft highlight upper-left, a darkened limb, and a very
  *  fine grain. No surface features — the colour does the talking. */
 const planetTex = (color: string) => canvasTex(`planet:${color}`, 256, (ctx, s) => {
@@ -160,7 +161,8 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const [total, setTotal] = useState(0)
   const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
   const [span, setSpan] = useState(260)
-  const [allChunks, setAllChunks] = useState<GraphNode[]>([])   // seeds for the nebulae
+  const [allChunks, setAllChunks] = useState<GraphNode[]>([])
+  const wobblers = useRef(new Map<string, THREE.Group>())   // brain id → inner group we drift
 
   useEffect(() => {
     api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
@@ -191,6 +193,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       .then(r => {
         if (!alive) return
         setTotal(r.total_chunks)
+        wobblers.current.clear()
         setData({ nodes: r.nodes.map(n => ({ ...n, fx: n.x, fy: n.y, fz: n.z })), links: r.links })
         const s = Math.max(220, ...r.nodes.flatMap(n => [Math.abs(n.x || 0), Math.abs(n.y || 0), Math.abs(n.z || 0)]))
         setSpan(s)
@@ -343,6 +346,31 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     return () => window.clearTimeout(t)
   }, [hits, dimming])
 
+  // each planet drifts on its own slow orbit: three sines with periods of
+  // 9–19 s and phases from its id, a few units of amplitude
+  useEffect(() => {
+    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (still) return
+    let raf = 0
+    const params = new Map<string, number[]>()
+    const tick = (t: number) => {
+      raf = requestAnimationFrame(tick)
+      const T0 = t / 1000
+      for (const [id, g] of wobblers.current) {
+        let pr = params.get(id)
+        if (!pr) {
+          let h = hash(id); const r = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
+          pr = [9 + r() * 10, 9 + r() * 10, 9 + r() * 10, r() * 6.28, r() * 6.28, r() * 6.28, 3 + r() * 3]
+          params.set(id, pr)
+        }
+        const [px, py, pz, ax, ay, az, amp] = pr
+        g.position.set(Math.sin(T0 / px * 6.283 + ax) * amp, Math.sin(T0 / py * 6.283 + ay) * amp, Math.sin(T0 / pz * 6.283 + az) * amp * 0.6)
+      }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
   const drill = (n: GraphNode) => {
     if (n.level === 'brain') setCrumbs([...crumbs, { level: 'cluster', id: n.id, label: n.label }])
     else if (n.level === 'cluster') setCrumbs([...crumbs, { level: 'chunk', id: n.id, label: n.label }])
@@ -385,9 +413,17 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           const r = n.level === 'brain' ? n.size * 2.6 : Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
           const g = new THREE.Group()
           if (n.level === 'brain') {
-            // a small textured planet with a faint halo
-            g.add(sprite(coreTex(hue), r * 4.2, lit ? 0.3 : 0.08, T.additive))
-            g.add(sprite(planetTex(hue), r * 2.1, lit ? 1 : 0.35))
+            // planet + halo live in an inner group so we can wobble them without
+            // fighting the library, which owns the outer group's position
+            const inner = new THREE.Group()
+            inner.add(sprite(coreTex(hue), r * 4.2, lit ? 0.3 : 0.08, T.additive))
+            inner.add(sprite(planetTex(hue), r * 2.1, lit ? 1 : 0.35))
+            const s = makeLabel(n.label, lit ? T.label : T.labelDim, !lit, T.shadow)
+            s.position.set(0, r * 1.15 + 12, 0)
+            inner.add(s)
+            g.add(inner)
+            wobblers.current.set(n.id, inner)
+            return g
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
