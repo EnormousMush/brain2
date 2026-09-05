@@ -98,7 +98,7 @@ export default function SparkBar({
   return (
     <>
       <div className="cap">
-        <div className={`search-pill${pending ? ' busy' : ''}`}>
+        <div className={`search-pill glass${pending ? ' busy' : ''}`}>
           <span className="s-ico"><Search /></span>
           <input
             ref={inputRef} value={text} placeholder="此刻在想什么"
@@ -110,7 +110,7 @@ export default function SparkBar({
           <button className="pill dark small" onClick={submit}>记下</button>
         </div>
         {showDrop && (
-          <div className="panel drop">
+          <div className="panel drop glass">
             <div className="panel-head"><span className="label">最近</span><span className="label num">{pad(sparks.length)}</span></div>
             {sparks.slice(0, 6).map(s => (
               <button key={s.id} className="recent" onMouseDown={() => pick(s)}>

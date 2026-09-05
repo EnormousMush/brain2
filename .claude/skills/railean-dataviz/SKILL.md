@@ -142,3 +142,13 @@ Keep the current paper / carbon / cobalt system for the light chrome (it already
 - Measured: body 16px Lato; H2 24px/400 (name), 56px/700 (sections), 192px/700 (BLOG); H3 24px/700; H1 60.8px/700 (closing CTA).
 - Radii in use: 999px, 100px, 20px, 16px, 11px, 8px, 4px, 2px. Shadows: `0 2px 5px #0003`, `0 10px 16px -3px #14151a14`.
 - Effects: `backdrop-filter: blur(1rem | 3.2rem)`, `filter: blur(40px)` on a background blob, `filter: saturate(0%)` on logos.
+
+## 6. Liquid glass rules (from Apple's Liquid Glass guidance, applied to web)
+
+- Glass is a **navigation-layer** material: top bar controls, the icon rail, search pill, breadcrumb pill, chips, secondary pills, popovers and sheets. **Never on content** (transcripts, cards, lists, text blocks) — those are solid surfaces (`--surface`) so they stay readable.
+- Glass must have something to sample: the map is full-bleed under the controls; a glass strip over a flat background is pointless.
+- Nearby glass shares one container (the rail is one glass pill holding its buttons); avoid glass nested in glass.
+- Recipe: translucent fill, `blur(24px) saturate(170%)`, 1px top highlight + 1px bottom shade inset, faint top-left specular sheen, 999px pills / 20px panels.
+- Interactive glass gives physical feedback: scale .96 and a brightness lift on press.
+- `prefers-reduced-transparency: reduce` collapses every glass surface to solid.
+- The one primary action stays solid accent, not glass, so it remains the only "button" on screen.

@@ -276,7 +276,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
 
   return (
     <div className="galaxy" ref={wrapRef}>
-      <div className="crumbs">
+      <div className="crumbs glass">
         {crumbs.map((c, i) => (
           <button key={i} onClick={() => setCrumbs(crumbs.slice(0, i + 1))}
                   className={i === crumbs.length - 1 ? 'crumb active' : 'crumb'}>
@@ -333,7 +333,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       />
 
       {hover && (
-        <div className="panel inspector">
+        <div className="panel inspector glass">
           <div className="ins-title">{hover.label}</div>
           <div className="ins-body">{hover.preview}</div>
           {hover.source_path && <div className="ins-src">{hover.source_path}</div>}

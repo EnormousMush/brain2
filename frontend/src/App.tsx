@@ -119,11 +119,10 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="rail" aria-label="导航">
+      <nav className="rail glass" aria-label="导航">
         <button className={`rail-btn${view === 'home' ? ' active' : ''}`} title="星图" aria-label="星图" onClick={goHome}><MapIcon /></button>
         <button className={`rail-btn${view === 'debate' ? ' active' : ''}`} title="辩论" aria-label="辩论"
                 disabled={!debateId} onClick={() => setView('debate')}><DebateIcon /></button>
-        <div className="rail-spacer" />
         <button className={`rail-btn${settings ? ' active' : ''}`} title="设置" aria-label="设置" onClick={() => setSettings(true)}><Sliders /></button>
       </nav>
 
