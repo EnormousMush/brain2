@@ -11,13 +11,15 @@ import { Glass } from '../liquidGlass'
 const THEME = {
   dark: {
     paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
-    hues: ['#A855F7', '#F0468C', '#38BDF8', '#FBBF24', '#34D399'],
+    hues: ['#A78BFA', '#F472B6', '#38BDF8', '#FBBF24', '#34D399', '#FB7185', '#60A5FA', '#F97316',
+           '#2DD4BF', '#E879F9', '#A3E635', '#F59E0B', '#818CF8'],
     core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true,
     cloudOpacity: 0.9, cloudSize: 5,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
-    hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A'],
+    hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A', '#C98486', '#7A93C9', '#C98E6A',
+           '#6FB3AD', '#B784C4', '#9BB56F', '#C4A15F', '#8A8FC9'],
     core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false,
     cloudOpacity: 0.8, cloudSize: 4,
   },
@@ -47,9 +49,43 @@ const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
   g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.18, color); g.addColorStop(0.45, color + '55'); g.addColorStop(1, color + '00')
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
 })
-/** plain disc, anti-aliased edge */
+/** plain disc, anti-aliased edge (clusters and stars) */
 const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2); ctx.fill()
+})
+/** a small planet: lit from the upper left, a darker limb, a few soft surface
+ *  blotches and a thin rim. Seeded so every brain keeps its own face. */
+function hash(str: string) { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) } return h >>> 0 }
+const planetTex = (color: string, seed: string) => canvasTex(`planet:${color}:${seed}`, 256, (ctx, s) => {
+  const c = s / 2, r = s / 2 - 4
+  let h = hash(seed)
+  const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
+  ctx.save(); ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.clip()
+  // base: sphere shading
+  const g = ctx.createRadialGradient(c - r * .4, c - r * .45, r * .05, c, c, r)
+  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.08, color); g.addColorStop(0.75, color); g.addColorStop(1, 'rgba(0,0,0,.55)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+  ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = color; ctx.globalAlpha = .35; ctx.fillRect(0, 0, s, s)
+  // surface: soft blotches, darker and lighter
+  ctx.globalCompositeOperation = 'source-over'
+  for (let i = 0; i < 9; i++) {
+    const x = c + (rnd() * 2 - 1) * r * .8, y = c + (rnd() * 2 - 1) * r * .8, rr = r * (0.12 + rnd() * 0.3)
+    const b = ctx.createRadialGradient(x, y, 0, x, y, rr)
+    const dark = rnd() > 0.4
+    b.addColorStop(0, dark ? 'rgba(0,0,0,.28)' : 'rgba(255,255,255,.22)'); b.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.globalAlpha = 1; ctx.fillStyle = b; ctx.fillRect(0, 0, s, s)
+  }
+  // faint bands
+  ctx.globalAlpha = .12; ctx.strokeStyle = '#000'; ctx.lineWidth = r * .08
+  for (let i = 0; i < 3; i++) { const y = c + (rnd() * 2 - 1) * r * .7; ctx.beginPath(); ctx.ellipse(c, y, r, r * .18, 0, 0, Math.PI * 2); ctx.stroke() }
+  // terminator shadow on the lower right
+  const t = ctx.createRadialGradient(c + r * .55, c + r * .6, r * .1, c + r * .3, c + r * .3, r * 1.2)
+  t.addColorStop(0, 'rgba(0,0,0,.45)'); t.addColorStop(1, 'rgba(0,0,0,0)')
+  ctx.globalAlpha = 1; ctx.fillStyle = t; ctx.fillRect(0, 0, s, s)
+  ctx.restore()
+  // rim
+  ctx.globalAlpha = .55; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.arc(c, c, r - 0.5, 0, Math.PI * 2); ctx.stroke()
 })
 
 function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false): THREE.Sprite {
@@ -60,7 +96,7 @@ function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false)
   return s
 }
 
-function makeLabel(text: string, color: string, dim: boolean, shadow: string, fs = 48, weight = 700): THREE.Sprite {
+function makeLabel(text: string, color: string, dim: boolean, shadow: string, fs = 40, weight = 600): THREE.Sprite {
   const pad = 10
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const measure = document.createElement('canvas').getContext('2d')!
@@ -77,7 +113,7 @@ function makeLabel(text: string, color: string, dim: boolean, shadow: string, fs
   ctx.fillText(text, pad, h / 2)
   const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }))
-  s.scale.set(w * 0.34, h * 0.34, 1)
+  s.scale.set(w * 0.26, h * 0.26, 1)
   return s
 }
 
@@ -260,23 +296,45 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     return () => { scene.remove(g) }
   }, [data, hits, dimming, here.level, span, T, brainIndex, hitBrains, allChunks, crumbs])
 
+  // the whole chart drifts slowly; any pointer interaction pauses it, and it
+  // resumes a few seconds after the user lets go
   useEffect(() => {
     const c = fgRef.current?.controls?.()
-    if (!c) return
+    const el = wrapRef.current
+    if (!c || !el) return
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    c.autoRotate = !dimming && !still
-    c.autoRotateSpeed = 0.4
     c.enableDamping = true
     c.dampingFactor = 0.08
-  }, [dimming, data.nodes])
+    c.autoRotateSpeed = 0.35
+    c.autoRotate = !still
+    let timer: number | undefined
+    const pause = () => { c.autoRotate = false; window.clearTimeout(timer) }
+    const resume = () => { window.clearTimeout(timer); timer = window.setTimeout(() => { c.autoRotate = !still }, 3500) }
+    const onDown = () => pause()
+    const onUp = () => resume()
+    const onWheel = () => { pause(); resume() }
+    el.addEventListener('pointerdown', onDown)
+    window.addEventListener('pointerup', onUp)
+    el.addEventListener('wheel', onWheel, { passive: true })
+    return () => {
+      window.clearTimeout(timer)
+      el.removeEventListener('pointerdown', onDown)
+      window.removeEventListener('pointerup', onUp)
+      el.removeEventListener('wheel', onWheel)
+    }
+  }, [data.nodes])
 
   useEffect(() => {
     if (!dimming || !fgRef.current || !hits.length) return
     const c = hits.reduce((a, n) => ({ x: a.x + n.x, y: a.y + n.y, z: a.z + n.z }), { x: 0, y: 0, z: 0 })
     const n = hits.length
     const spread = Math.max(180, ...hits.map(h => Math.hypot(h.x - c.x / n, h.y - c.y / n, h.z - c.z / n))) * 2.6
+    const ctl = fgRef.current.controls?.()
+    if (ctl) ctl.autoRotate = false
     fgRef.current.cameraPosition({ x: c.x / n + spread * 0.25, y: c.y / n + spread * 0.15, z: c.z / n + spread },
                                  { x: c.x / n, y: c.y / n, z: c.z / n }, 1100)
+    const t = window.setTimeout(() => { if (ctl && !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) ctl.autoRotate = true }, 3000)
+    return () => window.clearTimeout(t)
   }, [hits, dimming])
 
   const drill = (n: GraphNode) => {
@@ -320,9 +378,9 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           const r = Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
           const g = new THREE.Group()
           if (n.level === 'brain') {
-            // one plain circle per brain, with a faint halo so it sits in its cloud
-            g.add(sprite(coreTex(hue), r * 4.2, lit ? 0.35 : 0.1, T.additive))
-            g.add(sprite(discTex(hue), r * 1.9, lit ? 1 : 0.35))
+            // a small textured planet with a faint halo
+            g.add(sprite(coreTex(hue), r * 4.2, lit ? 0.3 : 0.08, T.additive))
+            g.add(sprite(planetTex(hue, n.id), r * 2.1, lit ? 1 : 0.35))
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
@@ -330,7 +388,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           }
           if (n.level !== 'chunk') {
             const s = makeLabel(n.label, lit ? T.label : T.labelDim, !lit, T.shadow)
-            s.position.set(0, r * 1.3 + 16, 0)
+            s.position.set(0, r * 1.15 + 12, 0)
             g.add(s)
           }
           return g

@@ -14,6 +14,8 @@ move them. Same note, same spot, every launch.
 """
 from __future__ import annotations
 
+import hashlib
+
 import numpy as np
 
 from ..db import bulk_set, find, from_blob
@@ -68,9 +70,31 @@ def _brain_ids() -> list[str]:
     return [b["id"] for b in find("brains", sort=[("created_at", 1)], fields=["created_at"])]
 
 
+def _jitter(seed: str) -> tuple[float, np.ndarray]:
+    """Deterministic irregularity per brain: a radius factor and a small
+    angular nudge, both derived from the brain id, so the layout looks
+    organic but never moves between launches."""
+    rng = np.random.default_rng(int(hashlib.sha1(seed.encode()).hexdigest()[:8], 16))
+    radius = float(rng.uniform(0.55, 1.3))
+    nudge = rng.normal(size=3).astype("float32") * 0.28
+    return radius, nudge
+
+
+def brain_centres(brains: list[str]) -> np.ndarray:
+    """Fibonacci sphere keeps brains apart; per-brain jitter breaks the lattice."""
+    base = fibonacci_sphere(max(len(brains), 1))
+    out = []
+    for direction, bid in zip(base, brains):
+        radius, nudge = _jitter(bid)
+        d = direction + nudge
+        d = d / max(float(np.linalg.norm(d)), 1e-6)
+        out.append(d * GALAXY_R * radius)
+    return np.array(out, dtype="float32") if out else np.zeros((1, 3), dtype="float32")
+
+
 def layout_all() -> None:
     brains = _brain_ids()
-    centres = fibonacci_sphere(max(len(brains), 1)) * GALAXY_R
+    centres = brain_centres(brains)
     for c, bid in zip(centres, brains):
         layout_brain(bid, centre=c)
 
@@ -78,7 +102,7 @@ def layout_all() -> None:
 def layout_brain(brain_id: str, centre: np.ndarray | None = None) -> None:
     if centre is None:
         brains = _brain_ids()
-        centres = fibonacci_sphere(max(len(brains), 1)) * GALAXY_R
+        centres = brain_centres(brains)
         idx = brains.index(brain_id) if brain_id in brains else 0
         centre = centres[idx]
 
