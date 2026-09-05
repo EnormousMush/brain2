@@ -11,13 +11,13 @@ const THEME = {
   dark: {
     paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
     hues: ['#A855F7', '#F0468C', '#38BDF8', '#FBBF24', '#34D399'],
-    core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', axis: '#6B7683', additive: true,
-    cloudOpacity: 0.42, cloudSize: 5.2,
+    core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true,
+    cloudOpacity: 0.36, cloudSize: 4.6,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
     hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A'],
-    core: '#2148B8', dim: '#DFE2E8', wire: '#111418', axis: '#8A939E', additive: false,
+    core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false,
     cloudOpacity: 0.32, cloudSize: 4.2,
   },
 }
@@ -46,16 +46,9 @@ const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
   g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.18, color); g.addColorStop(0.45, color + '55'); g.addColorStop(1, color + '00')
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
 })
-/** glass disc: translucent fill, bright rim, a highlight arc top-left */
-const glassTex = (rim: string) => canvasTex(`glass:${rim}`, 256, (ctx, s) => {
-  const c = s / 2, r = s / 2 - 6
-  const fill = ctx.createRadialGradient(c - r * .35, c - r * .35, r * .1, c, c, r)
-  fill.addColorStop(0, 'rgba(255,255,255,.28)'); fill.addColorStop(.6, 'rgba(255,255,255,.08)'); fill.addColorStop(1, 'rgba(255,255,255,.14)')
-  ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill()
-  ctx.lineWidth = 3; ctx.strokeStyle = rim; ctx.globalAlpha = .9
-  ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.stroke()
-  ctx.globalAlpha = .7; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; ctx.lineCap = 'round'
-  ctx.beginPath(); ctx.arc(c, c, r - 9, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke()
+/** plain disc, anti-aliased edge */
+const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
+  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2); ctx.fill()
 })
 
 function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false): THREE.Sprite {
@@ -119,28 +112,6 @@ function segments(pairs: [THREE.Vector3, THREE.Vector3][], color: string, opacit
   const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
   return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false,
     blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending }))
-}
-
-/** A corner axis tripod with labels, like a plotted chart. */
-function axes(span: number, color: string, labelColor: string, shadow: string): THREE.Group {
-  const g = new THREE.Group()
-  const o = new THREE.Vector3(-span, -span, -span)
-  const L = span * 2
-  const dirs: [THREE.Vector3, string][] = [
-    [new THREE.Vector3(L, 0, 0), 'X · AXIS'], [new THREE.Vector3(0, L, 0), 'Z · AXIS'], [new THREE.Vector3(0, 0, L), 'Y · AXIS'],
-  ]
-  for (const [d, name] of dirs) {
-    const end = o.clone().add(d)
-    g.add(segments([[o, end]], color, 0.55, false))
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 12, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .8 }))
-    cone.position.copy(end)
-    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize())
-    g.add(cone)
-    const lbl = makeLabel(name, labelColor, false, shadow, 30, 500)
-    lbl.position.copy(o.clone().add(d.clone().multiplyScalar(0.5))).add(new THREE.Vector3(0, -18, 0))
-    g.add(lbl)
-  }
-  return g
 }
 
 /* ------------------------------------------------------------------ view */
@@ -244,10 +215,9 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       const perSeed = Math.min(600, Math.max(60, Math.round(2400 / list.length)))
       const sigma = here.level === 'brain' ? 34 : 16
       const hue = lit ? hueOf(bid) : T.dim
-      // outer haze, mid body, dense core: three shells of the same hue
-      g.add(cloud(list, perSeed, sigma * 1.6, hue, T.cloudSize * 1.3, (lit ? T.cloudOpacity : 0.08) * 0.45, T.additive))
-      g.add(cloud(list, perSeed, sigma, hue, T.cloudSize, lit ? T.cloudOpacity : 0.1, T.additive))
-      g.add(cloud(list, Math.ceil(perSeed / 2), sigma * 0.4, hue, T.cloudSize * 0.7, lit ? T.cloudOpacity * 1.3 : 0.1, T.additive))
+      // two shells: body and a denser core
+      g.add(cloud(list, perSeed, sigma, hue, T.cloudSize, lit ? T.cloudOpacity : 0.08, T.additive))
+      g.add(cloud(list, Math.ceil(perSeed / 2), sigma * 0.45, hue, T.cloudSize * 0.75, lit ? T.cloudOpacity * 1.2 : 0.08, T.additive))
     }
 
     // wires: hub ↔ hub, and each hub to a few stray particles of other clouds
@@ -255,17 +225,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     const pairs: [THREE.Vector3, THREE.Vector3][] = []
     for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++)
       pairs.push([new THREE.Vector3(hubs[i].x, hubs[i].y, hubs[i].z), new THREE.Vector3(hubs[j].x, hubs[j].y, hubs[j].z)])
-    for (const h of hubs) {
-      const others = seeds.filter(c => c.brain_id !== h.brain_id)
-      for (let k = 0; k < Math.min(10, others.length); k++) {
-        const c = others[Math.floor(Math.random() * others.length)]
-        pairs.push([new THREE.Vector3(h.x, h.y, h.z), new THREE.Vector3(c.x + gauss() * 10, c.y + gauss() * 10, c.z + gauss() * 10)])
-      }
-    }
-    if (pairs.length) g.add(segments(pairs, T.wire, dark ? 0.16 : 0.12, false))
-
-    // axes in the corner
-    g.add(axes(span * 1.15, T.axis, T.axis, T.shadow))
+    if (pairs.length) g.add(segments(pairs, T.wire, dark ? 0.1 : 0.08, false))
 
     // hit fragments as bright stars at the top level, plus the constellation
     if (here.level === 'brain') {
@@ -353,12 +313,11 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           const r = Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
           const g = new THREE.Group()
           if (n.level === 'brain') {
-            // glass disc + glowing core: one circle per brain
-            g.add(sprite(glassTex(hue), r * 3.2, lit ? 1 : 0.35))
-            g.add(sprite(coreTex(T.core), r * 2.2, lit ? 1 : 0.2, T.additive))
+            // one plain circle per brain, with a faint halo so it sits in its cloud
+            g.add(sprite(coreTex(hue), r * 4.2, lit ? 0.35 : 0.1, T.additive))
+            g.add(sprite(discTex(hue), r * 1.9, lit ? 1 : 0.35))
           } else if (n.level === 'cluster') {
-            g.add(sprite(glassTex(hue), r * 2, lit ? 0.9 : 0.3))
-            g.add(sprite(coreTex(hue), r * 1.2, lit ? 0.9 : 0.2, T.additive))
+            g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
             g.add(sprite(coreTex(hue), Math.max(r * 2.2, 10), lit ? 1 : 0.25, T.additive))
           }

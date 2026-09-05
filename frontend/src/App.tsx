@@ -86,8 +86,6 @@ export default function App() {
 
   const goHome = () => { setView('home') }
   const noBrains = brains.length === 0
-  const fragments = brains.reduce((n, b) => n + (b.chunk_count || 0), 0)
-  const pad = (n: number, w = 2) => String(n).padStart(w, '0')
 
   return (
     <div className="app">
@@ -151,13 +149,6 @@ export default function App() {
             ) : (
               <>
                 <BrainGauges brains={brains} hits={hitBrains} onOpenSettings={() => setSettings(true)} />
-                <div className="band">
-                  <div className="cell"><span className="label">副脑</span><span className="val">{pad(brains.length)}</span></div>
-                  <div className="cell"><span className="label">碎片</span><span className="val">{pad(fragments, 3)}</span></div>
-                  <div className="cell"><span className="label">命中</span><span className={`val${active.length ? ' acc' : ''}`}>{pad(active.length)}</span></div>
-                  <div className="cell"><span className="label">日期</span><span className="val">{new Date().toISOString().slice(0, 10)}</span></div>
-                  <div className="cell hint"><span className="label">操作</span><span className="val">拖动旋转 · 滚轮缩放 · 点击钻取</span></div>
-                </div>
               </>
             )}
           </div>

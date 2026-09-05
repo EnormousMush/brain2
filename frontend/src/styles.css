@@ -60,7 +60,7 @@
   --grid-dot: rgba(255,255,255,.06);
   --r-panel: 12px;
   --blur: blur(16px);
-  --glow: 0 0 24px rgba(138,164,240,.25);
+  --glow: none;
 }
 
 * { box-sizing: border-box; }
@@ -193,8 +193,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 
 /* ============================================================ home / HUD */
 .home { position: absolute; inset: 0; }
-.galaxy { position: absolute; inset: 0; background: var(--canvas);
-  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.2px); background-size: 26px 26px; }
+.galaxy { position: absolute; inset: 0; background: var(--canvas); }
 .crumbs { position: absolute; z-index: 5; top: var(--gap); left: 50%; transform: translateX(-50%); display: flex; gap: 4px;
   align-items: center; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line);
   backdrop-filter: var(--blur); }
@@ -202,7 +201,6 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
   cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: all var(--fast); }
 .crumb:hover { color: var(--fg); }
 .crumb.active { background: var(--pill); color: var(--pill-fg); }
-.crumb.active::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
 .crumb-meta { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--fg-3); padding: 0 12px 0 6px;
   font-variant-numeric: tabular-nums; }
 .inspector { position: absolute; z-index: 5; right: var(--gap); bottom: 92px; width: min(340px, 50vw); }
@@ -226,7 +224,6 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .ring { flex: none; }
 .ring-track { fill: none; stroke: var(--line-2); stroke-width: 3; }
 .ring-arc { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; transition: stroke-dasharray var(--slow) var(--ease); }
-:root[data-theme="dark"] .ring-arc { filter: drop-shadow(0 0 4px rgba(138,164,240,.6)); }
 .ring-val { font-size: 10px; font-weight: 700; fill: var(--fg-2); font-variant-numeric: tabular-nums; }
 .gauges .pill { align-self: flex-start; margin-top: 6px; }
 

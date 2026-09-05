@@ -3,10 +3,10 @@ import type { Brain } from '../types'
 /** Right-edge panel: every brain as a ring gauge (its share of all fragments)
  *  with a live 命中 count when a spark has landed. Data carries the colour;
  *  the chrome stays gray. */
-export default function BrainGauges({ brains, hits, onOpenSettings }: {
+export default function BrainGauges({ brains, hits }: {
   brains: Brain[]
   hits: Record<string, number>
-  onOpenSettings: () => void
+  onOpenSettings?: () => void
 }) {
   const total = Math.max(1, brains.reduce((n, b) => n + (b.chunk_count || 0), 0))
   const hasHits = Object.keys(hits).length > 0
@@ -34,7 +34,6 @@ export default function BrainGauges({ brains, hits, onOpenSettings }: {
           </div>
         )
       })}
-      <button className="pill ghost small" onClick={onOpenSettings}>管理副脑</button>
     </div>
   )
 }
