@@ -219,9 +219,19 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
 
     // wires: hub ↔ hub, and each hub to a few stray particles of other clouds
     const hubs = data.nodes.filter(n => n.level !== 'chunk')
+    // each hub joins its three nearest neighbours (all pairs turns into a web past ~8 brains)
     const pairs: [THREE.Vector3, THREE.Vector3][] = []
-    for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++)
-      pairs.push([new THREE.Vector3(hubs[i].x, hubs[i].y, hubs[i].z), new THREE.Vector3(hubs[j].x, hubs[j].y, hubs[j].z)])
+    const seen = new Set<string>()
+    for (let i = 0; i < hubs.length; i++) {
+      const near = hubs.map((h, j) => ({ j, d: Math.hypot(h.x - hubs[i].x, h.y - hubs[i].y, h.z - hubs[i].z) }))
+        .filter(o => o.j !== i).sort((a, b) => a.d - b.d).slice(0, 3)
+      for (const { j } of near) {
+        const key = i < j ? `${i}-${j}` : `${j}-${i}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        pairs.push([new THREE.Vector3(hubs[i].x, hubs[i].y, hubs[i].z), new THREE.Vector3(hubs[j].x, hubs[j].y, hubs[j].z)])
+      }
+    }
     if (pairs.length) g.add(segments(pairs, T.wire, dark ? 0.1 : 0.08, false))
 
     // hit fragments as bright stars at the top level, plus the constellation

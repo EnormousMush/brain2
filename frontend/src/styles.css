@@ -252,7 +252,8 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .result.waiting { opacity: .9; }
 .rc-quote { font-size: 18px; font-weight: 700; letter-spacing: -.01em; line-height: 1.35; margin: 2px 0 14px; }
 
-.gauges { position: absolute; z-index: 6; top: calc(var(--top) + 8px); right: var(--gap); width: 260px; display: flex; flex-direction: column; gap: 6px; }
+.gauges { position: absolute; z-index: 6; top: calc(var(--top) + 8px); right: var(--gap); width: 260px;
+  max-height: calc(100vh - var(--top) - 2 * var(--gap)); overflow: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 6px; }
 .gauge-row { display: flex; align-items: center; gap: 12px; padding: 6px 0; transition: opacity var(--base); }
 .gauge-row.dim { opacity: .38; }
 .gauge-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
