@@ -3,9 +3,10 @@ import { api } from '../api'
 import type { Spark } from '../types'
 
 /**
- * Capture — a command bar over the star map. One line is the whole surface;
- * the star map behind it lights up the moment a spark resolves. ⌘K focuses,
- * Enter records, and the enriched result unfolds as a floating index card.
+ * Capture — one ruled line over the star map, set in display type so the
+ * sentence you are about to write is the loudest thing on the page. ⌘K
+ * focuses, Enter records, and the enriched result unfolds as an index plate
+ * in the lower left.
  */
 export default function SparkBar({
   running = false, onDebate, onSpotlight, onRunExample,
@@ -85,14 +86,15 @@ export default function SparkBar({
   const close = () => { setSelected(null); onSpotlight([]) }
   const brainsHit = (s: Spark) => new Set(s.hits.map(h => h.brain_id)).size
   const showDrop = focused && text === '' && sparks.length > 0
+  const pad = (n: number) => String(n).padStart(2, '0')
 
   return (
     <>
       <div className="cap-pill">
+        <div className="cap-label"><span className="n">01</span><span>记一句</span></div>
         <div className="cap-row">
-          <span className="glyph">✳</span>
           <input
-            ref={inputRef} value={text} placeholder="记一句…"
+            ref={inputRef} value={text} placeholder="此刻在想什么"
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             onChange={e => setText(e.target.value)}
@@ -102,24 +104,25 @@ export default function SparkBar({
 
         {showDrop ? (
           <div className="cap-drop">
-            <div className="dh">最近</div>
+            <div className="dh">recent</div>
             {sparks.slice(0, 6).map(s => (
               <button key={s.id} className="recent" onMouseDown={() => pick(s)}>
                 <span className={`dot ${s.status}`} />
                 <span className="rtext">{s.text}</span>
                 <span className="rmeta">
-                  {s.status === 'enriched' ? `${brainsHit(s)} 副脑`
-                    : s.status === 'captured' ? '联想中…' : s.status}
+                  {s.status === 'enriched' ? `${pad(brainsHit(s))} brains`
+                    : s.status === 'captured' ? 'linking' : s.status}
                 </span>
               </button>
             ))}
           </div>
         ) : (
           <div className="cap-foot">
-            <span><kbd>⌘K</kbd> 唤起 · 回车记录</span>
+            <span><kbd>⌘K</kbd> focus</span>
+            <span><kbd>↵</kbd> record</span>
             {onRunExample && (
               <button className="link" onClick={onRunExample} disabled={running}>
-                {running ? '正在开庭…' : '试一个例子'}
+                {running ? 'opening' : '试一个例子'}
               </button>
             )}
           </div>
@@ -128,23 +131,26 @@ export default function SparkBar({
 
       {selected && selected.status === 'enriched' && (
         <div className="result-card">
-          <button className="rc-close" onClick={close}>✕</button>
+          <div className="rc-head">
+            <span className="mono">02 · 问题骨架</span>
+            <button className="rc-close" onClick={close}>✕</button>
+          </div>
           <div className="rc-quote">{selected.text}</div>
 
           {selected.skeleton && (
             <>
               <div className="skel">
-                <div><span className="k">对象</span><span>{selected.skeleton.object || '—'}</span></div>
-                <div><span className="k">约束</span><span>{selected.skeleton.constraint || '—'}</span></div>
-                <div><span className="k">机制</span><span>{selected.skeleton.mechanism || '—'}</span></div>
-                <div><span className="k">动机</span><span>{selected.skeleton.motivation || '—'}</span></div>
+                <div><span className="k">object</span><span>{selected.skeleton.object || '—'}</span></div>
+                <div><span className="k">constraint</span><span>{selected.skeleton.constraint || '—'}</span></div>
+                <div><span className="k">mechanism</span><span>{selected.skeleton.mechanism || '—'}</span></div>
+                <div><span className="k">motivation</span><span>{selected.skeleton.motivation || '—'}</span></div>
               </div>
-              <div className="skel-note">用这副骨架检索，而不是你的原话。</div>
+              <div className="skel-note">domain nouns removed · retrieval uses the skeleton, not your words</div>
             </>
           )}
 
           <div className="hit-line">
-            跳过最相似，命中 <b>{brainsHit(selected)} 个副脑</b>的 {selected.hits.length} 条中距离碎片
+            跳过最相似的结果，命中 <b>{brainsHit(selected)} 个副脑</b> 的 {selected.hits.length} 条中距离碎片
           </div>
 
           <div className="wild-inline">
@@ -155,7 +161,7 @@ export default function SparkBar({
           </div>
 
           <div className="result-actions">
-            <button className="primary" onClick={() => onDebate(selected, wildness)}>开庭 →</button>
+            <button className="primary" onClick={() => onDebate(selected, wildness)}>开始辩论 →</button>
           </div>
         </div>
       )}

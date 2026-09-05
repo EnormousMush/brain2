@@ -91,7 +91,7 @@ export default function App() {
     <div className="app">
       <div className={`topbar${view === 'home' ? ' over' : ''}`}>
         <button className="brand" onClick={backHome}>
-          <span className="dot" /> weave <small>副脑</small>
+          <span className="dot" /><span className="wordmark">副脑</span><small>second brain</small>
         </button>
         {view === 'debate' && <span className="mode-title" style={{ marginLeft: 4 }}>{debateTitle}</span>}
         <div className="spacer" />
@@ -117,9 +117,10 @@ export default function App() {
           {noBrains ? (
             <div className="firstrun">
               <div>
-                <h2>点亮你的第一个副脑</h2>
-                <p>导入一段笔记，Weave 会把它切成碎片，铺成一张星图。</p>
-                <label className="file" style={{ border: '1px solid var(--acc)', color: 'var(--acc)' }}>
+                <span className="mono">00 · 开始</span>
+                <h2>导入一段笔记，建立第一个副脑。</h2>
+                <p>笔记会被切成碎片、按主题聚簇，并在星图上得到一个固定的位置。</p>
+                <label className="file">
                   导入笔记
                   <input type="file" multiple accept=".md,.txt,.zip" hidden
                          onChange={e => importFiles(e.target.files)} />
@@ -136,11 +137,11 @@ export default function App() {
           {!noBrains && (
             <div className="corners">
               <span className="c-bl">
-                {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+                {new Date().toISOString().slice(0, 10)}
               </span>
-              <span className="c-bc">拖动旋转 · 滚轮缩放 · 点击钻取</span>
+              <span className="c-bc">drag rotate · wheel zoom · click drill</span>
               <span className="c-br">
-                {brains.length} 副脑 · {brains.reduce((n, b) => n + (b.chunk_count || 0), 0)} 碎片
+                {String(brains.length).padStart(2, '0')} brains · {String(brains.reduce((n, b) => n + (b.chunk_count || 0), 0)).padStart(3, '0')} fragments
               </span>
             </div>
           )}
@@ -150,7 +151,7 @@ export default function App() {
       {view === 'debate' && (
         <div className="mode">
           <div className="mode-head">
-            <button className="back-btn" onClick={backHome}>← 返回星图</button>
+            <button className="back-btn" onClick={backHome}>← 星图</button>
           </div>
           <div className="mode-body">
             <div className="debate-wrap">

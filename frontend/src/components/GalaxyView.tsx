@@ -10,7 +10,7 @@ function makeLabel(text: string, color: string, dim: boolean, shadow: string): T
   const fs = 48, pad = 10
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const measure = document.createElement('canvas').getContext('2d')!
-  const font = `600 ${fs}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`
+  const font = `700 ${fs}px "Helvetica Neue", "PingFang SC", -apple-system, sans-serif`
   measure.font = font
   const w = Math.ceil(measure.measureText(text).width) + pad * 2
   const h = fs + pad * 2
@@ -31,6 +31,26 @@ function makeLabel(text: string, color: string, dim: boolean, shadow: string): T
   const scale = 0.34
   sprite.scale.set(w * scale, h * scale, 1)
   return sprite
+}
+
+/** A flat printed disc: no lighting, no gloss. The map should read like ink
+ *  on paper, not like a planetarium. */
+const DISC_CACHE = new Map<string, THREE.Texture>()
+function discTexture(color: string): THREE.Texture {
+  let t = DISC_CACHE.get(color)
+  if (t) return t
+  const c = document.createElement('canvas'); c.width = c.height = 64
+  const ctx = c.getContext('2d')!
+  ctx.fillStyle = color
+  ctx.beginPath(); ctx.arc(32, 32, 30, 0, Math.PI * 2); ctx.fill()
+  t = new THREE.CanvasTexture(c); t.minFilter = THREE.LinearFilter
+  DISC_CACHE.set(color, t)
+  return t
+}
+function makeDisc(color: string, r: number): THREE.Sprite {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: discTexture(color), transparent: true, depthWrite: false }))
+  s.scale.set(r * 2, r * 2, 1)
+  return s
 }
 
 /**
@@ -57,10 +77,15 @@ interface Props {
 interface Crumb { level: Level; id?: string; label: string }
 
 export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
-  const light = theme === 'light'
-  const bg = light ? '#faf6ef' : '#0e0b08'
-  const labelLit = light ? '#2b2318' : '#ece6dc'
-  const labelShadow = light ? 'rgba(255,253,248,0.9)' : 'rgba(0,0,0,0.9)'
+  const dark = theme === 'dark'
+  const bg = dark ? '#1C1C1B' : '#FAFAF7'
+  const labelLit = dark ? '#EDECE6' : '#242321'
+  const labelDim = dark ? '#7A7973' : '#96958E'
+  const labelShadow = dark ? 'rgba(28,28,27,0.95)' : 'rgba(250,250,247,0.95)'
+  // two inks only: every brain is a density of the same cobalt plate
+  const INKS = dark ? ['#7D96E4', '#5D74BF', '#3E4E80'] : ['#2148B8', '#6F87D1', '#A8B6E3']
+  const dimInk = dark ? '#2A2A29' : '#E4E4DF'
+  const inkOf = (n: any) => INKS[(brainIndex.get(n.brain_id) ?? 0) % INKS.length]
   const fgRef = useRef<any>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
@@ -69,6 +94,10 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     { nodes: [], links: [] })
   const [hover, setHover] = useState<GraphNode | null>(null)
   const [total, setTotal] = useState(0)
+  const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
+  useEffect(() => {
+    api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
+  }, [refreshKey])
 
   const here = crumbs[crumbs.length - 1]
 
@@ -175,19 +204,22 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
         nodeRelSize={9}
         nodeVal={(n: any) => (active.has(n.id) ? n.size * 3 : n.size)}
-        nodeColor={(n: any) =>
-          !dimming || active.has(n.id) ? n.color : 'rgba(120,130,150,0.06)'}
+        nodeColor={(n: any) => (!dimming || active.has(n.id) ? inkOf(n) : dimInk)}
         nodeOpacity={0.95}
         nodeResolution={16}
-        nodeThreeObjectExtend
         nodeThreeObject={(n: any) => {
-          if (n.level === 'chunk') return new THREE.Object3D()  // stars stay clean
           const lit = !dimming || active.has(n.id)
-          const s = makeLabel(n.label, lit ? labelLit : '#9a8d79', !lit, labelShadow)
-          s.position.set(0, (n.size + 3) * 4, 0)
-          return s
+          const r = Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
+          const g = new THREE.Group()
+          g.add(makeDisc(lit ? inkOf(n) : dimInk, r))
+          if (n.level !== 'chunk') {
+            const s = makeLabel(n.label, lit ? labelLit : labelDim, !lit, labelShadow)
+            s.position.set(0, r + 14, 0)
+            g.add(s)
+          }
+          return g
         }}
-        linkColor={(l: any) => (l.kind === 'hit' ? '#e0af68' : 'rgba(120,130,150,0.14)')}
+        linkColor={(l: any) => (l.kind === 'hit' ? INKS[0] : dimInk)}
         linkWidth={(l: any) => (l.kind === 'hit' ? 1.4 : 0.3)}
         linkDirectionalParticles={(l: any) => (l.kind === 'hit' ? 4 : 0)}
         linkDirectionalParticleWidth={2.4}

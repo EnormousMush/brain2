@@ -51,7 +51,7 @@ export default function SettingsDrawer({
   return (
     <div className="drawer">
       <div className="drawer-head">
-        <b>设置</b><button className="ghost" onClick={onClose}>关闭</button>
+        <b>设置</b><button className="quiet mono" onClick={onClose}>close</button>
       </div>
 
       <section>
@@ -84,9 +84,9 @@ export default function SettingsDrawer({
       <section>
         <h4>副脑 → 用哪个模型代理</h4>
         <p className="hint">不同副脑绑不同厂商，辩论时才有真正的异质性。</p>
-        {brains.map(b => (
+        {brains.map((b, i) => (
           <div key={b.id} className="bind">
-            <span className="chip" style={{ background: b.color }}>{b.name}</span>
+            <span className={`chip ${['solid', 'screen', 'outline'][i % 3]}`}>{b.name}</span>
             <select value={b.provider ?? ''}
                     onChange={e => api.patchBrain(b.id, { provider: e.target.value || null })
                       .then(onBrainsChanged)}>
