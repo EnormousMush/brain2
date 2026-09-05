@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import type { Spark } from '../types'
+import { Close } from './Icons'
 
 /**
  * Capture — one ruled line over the star map, set in display type so the
@@ -133,7 +134,7 @@ export default function SparkBar({
         <div className="result-card">
           <div className="rc-head">
             <span className="mono">02 · 问题骨架</span>
-            <button className="rc-close" onClick={close}>✕</button>
+            <button className="rc-close" aria-label="关闭" onClick={close}><Close /></button>
           </div>
           <div className="rc-quote">{selected.text}</div>
 

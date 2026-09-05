@@ -5,6 +5,7 @@ import DebateTheater from './components/DebateTheater'
 import GalaxyView from './components/GalaxyView'
 import SettingsDrawer from './components/SettingsDrawer'
 import SparkBar from './components/SparkBar'
+import { ArrowLeft, Moon, Sliders, Sun } from './components/Icons'
 import type { Brain, Card, Spark } from './types'
 
 type View = 'home' | 'debate'
@@ -101,11 +102,11 @@ export default function App() {
                  onChange={e => importFiles(e.target.files)} />
         </label>
         <button className="tbtn" onClick={importPaste}>粘贴</button>
-        <button className="icon-btn" title="切换主题"
+        <button className="icon-btn" title="切换主题" aria-label="切换主题"
                 onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
-          {theme === 'dark' ? '☀' : '☾'}
+          {theme === 'dark' ? <Sun /> : <Moon />}
         </button>
-        <button className="icon-btn" title="设置" onClick={() => setSettings(true)}>⚙</button>
+        <button className="icon-btn" title="设置" aria-label="设置" onClick={() => setSettings(true)}><Sliders /></button>
       </div>
 
       {view === 'home' && (
@@ -151,7 +152,7 @@ export default function App() {
       {view === 'debate' && (
         <div className="mode">
           <div className="mode-head">
-            <button className="back-btn" onClick={backHome}>← 星图</button>
+            <button className="back-btn" onClick={backHome}><ArrowLeft /> 星图</button>
           </div>
           <div className="mode-body">
             <div className="debate-wrap">
