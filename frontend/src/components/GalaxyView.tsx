@@ -301,6 +301,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   useEffect(() => {
     const c = fgRef.current?.controls?.()
     const el = wrapRef.current
+    if ((import.meta as any).env?.DEV) (window as any).__fg = fgRef.current
     if (!c || !el) return
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     c.enableDamping = true
@@ -367,6 +368,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         height={size.h}
         graphData={data as any}
         backgroundColor={T.paper}
+        controlType="orbit"
         showNavInfo={false}
         nodeId="id"
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
