@@ -49,31 +49,49 @@
 
 ## 2. 【M1】Eureka 模块 — 瞬时捕捉
 
+### 2.0 捕捉和出题是两件事，不许合并
+
+早期版本把「记一句话」和「开一场辩论」放在同一个顶栏输入框里。那是个产品级的
+错误：**一个常驻的输入框会让整个产品读起来像"你问我答"**，而这套东西的全部意义
+在于它自己会在星图里找题（§9）。所以：
+
+| 界面 | 干什么 | 组件 |
+|---|---|---|
+| 灵光（右下角按钮） | 只负责记想法：文字 / 图片+说明 / 归到哪个副脑 | `Eureka.tsx` |
+| 议题台（左侧导航） | 「我偏要它们吵这个」的入口，是例外不是主路径 | `DebateConsole.tsx` |
+
+顶栏**没有输入框**。这是有意的，不要加回去。
+
 ### 2.1 它必须满足的唯一硬指标
 
-**从按下快捷键到输入框获得焦点 < 100ms；从回车到输入框清空 < 16ms。**
+**从按下快捷键到输入框获得焦点 < 100ms；从回车到窗口关闭 < 16ms 的感知。**
 捕捉一旦有延迟，用户就不记了，整个产品的数据源就干涸了。所有 LLM 工作
 一律异步。
 
-### 2.2 三种碎念
+### 2.2 三种想法（`ideas.kind`）
 
-| kind | 触发 | 例子 | 处理差异 |
+| kind | 来自 | 例子 | 归属 |
 |---|---|---|---|
-| `phrase` | 默认 | "想做个工具帮小团队分活儿" | 直接抽骨架 |
-| `link` | 文本含 URL | 一个你觉得有趣的产品链接 | 骨架里额外记 `object=该产品在做的事` |
-| `reference` | 用户显式选 | "像 Arc 浏览器那种" | 同上，不联网抓取（演示当天不要依赖外网） |
+| `eureka` | 灵光窗口 | "排队论里的提前告知，其实是在卖确定感" | 用户当场选副脑，或不归档 |
+| `motion` | 议题台「我来出题」 | "把乐队的默认规则搬到合租分工上" | 默认不归档，同样进星图 |
+| `proposal` | 夜间 agent（§9） | agent 自己在星图里找到的题 | 停在收件箱，用户点头才进星图 |
 
-### 2.3 数据流（已实现，见 `api/sparks.py`）
+图片：客户端先缩到长边 ≤1400 的 JPEG，`data:` URL 提交，后端解码写到
+`DATA_DIR/idea_images/`，文档里只存相对路径（不要把 base64 塞进 Mongo 文档）。
+
+### 2.3 数据流（见 `api/ideas.py`）
 
 ```
-POST /api/sparks {text}
-  └─ 201 立即返回 (status=captured)        ← 前端乐观渲染，不等
-  └─ BackgroundTask enrich(spark_id):
+POST /api/ideas {text, kind, brain_id?, image_data_url?, image_caption?}
+  └─ 201 立即返回 (enrichment=pending)     ← 前端乐观渲染，不等
+  └─ layout_ideas()                        ← 立刻拿到星图坐标，先上图
+  └─ BackgroundTask enrich(idea_id):
        1. extract_skeleton(text)           LLM，剥领域名词
        2. embed(skeleton_query(sk, text))  骨架为主 + 原话 40 字兜底
        3. analogical_search(...)           §3.2
-       4. UPDATE status='enriched', skeleton, embedding, hits
-前端 400ms 轮询 GET /api/sparks/{id} 直到 enriched → 点亮星图
+       4. UPDATE enrichment='ready', skeleton, embedding, hits
+       5. layout_ideas()                   ← 有了向量，挪到最像它的碎片旁边
+前端 400ms 轮询 GET /api/ideas/{id} 直到 ready → 点亮星图
 ```
 
 失败一律降级不报错：没有 key → `_fallback()` 用正则分词出关键词，照样能检索。
@@ -93,10 +111,12 @@ POST /api/sparks {text}
 
 ### 2.5 M1 验收清单
 
-- [ ] `⌘K` / `Ctrl+K` 全局唤起，输入框已聚焦
-- [ ] 回车后输入框立刻清空，列表里立刻出现这条（服务端还没返回）
-- [ ] 断网 / 无 key 时仍能记录，状态走到 `enriched`（走 fallback）
-- [ ] enriched 后星图自动飞向命中区域并高亮
+- [ ] `⌘K` / `Ctrl+K` 全局唤起灵光窗口，文本框已聚焦
+- [ ] `⌘⏎` 提交后窗口立刻关闭，星图上立刻多一颗金色星
+- [ ] 不归档的想法浮在星图正中的空处；归档的落在那个副脑外缘
+- [ ] 粘贴一张截图能直接成为想法的配图
+- [ ] 断网 / 无 key 时仍能记录，`enrichment` 走到 `ready`（走 fallback）
+- [ ] ready 后星图自动飞向命中区域并高亮
 - [ ] 骨架四栏正确显示，且明显不含原句里的领域名词
 - [ ] 连续快速敲 10 条不丢、不卡、不重复
 
@@ -204,8 +224,8 @@ App 只固定 role，模型由用户自己填 key 决定（§6）。
 | 分层模型 | moderator/压缩走 `moderator_provider`（便宜档） | `providers/registry.py` |
 | 前端断流 | `useEffect` 返回 `stop()`，离开页面即关 SSE | `DebateTheater.tsx` |
 
-「**夜里做梦**」= 同一个引擎 `mode="dream"`、`max_rounds=3`，定时或一键触发，
-早上推 1 条。**这一句把产品从工具讲成主动的 agent，一定要在 demo 里出现。**
+「**夜里做梦**」已经落地了，见 §3.10。**这一段把产品从工具讲成主动的 agent，
+一定要在 demo 里出现。**
 
 ### 3.7 结算：想法卡片（`debate/cards.py`）
 
@@ -256,6 +276,56 @@ total = 0.45·惊喜度 + 0.30·可信度 + 0.25·可行性
 
 ---
 
+### 3.10 夜间发现（`night/discovery.py` + `night/runner.py`）
+
+**这是整个产品立场的技术落点。** 如果只有用户开口它才动，它就只是个搜索框。
+所以顶栏没有输入框（§2.0），默认路径是它每晚自己在星图里找题。
+
+#### 选题：两条策略，都不调 LLM
+
+| 比例 | strategy | 怎么选 | 为什么 |
+|---|---|---|---|
+| 2/3 | `unconnected` | 跨副脑、落在反相似度带里、**且从未在任何一场辩论里同时出现过**的碎片对 | 已经接通过的连接不是发现，是复读 |
+| 1/3 | `cold` | 同样的带，但锚定在**被辩论用得最少**的碎片上 | 前一条只会越挖越深；这一条保证没人管的角落最终一定会被翻到 |
+
+实现上**冷区先选**：开放搜索先跑会把好碎片吃光，冷区就永远分不到 —— 而那正是
+这条策略存在的唯一理由。一条碎片一晚只能锚一个提案（否则 n 个提案是同一个想法
+换了几张皮）。语料太小凑不够 n 时，按代价从小到大放松：先降噪声下限 `BAND_LO`，
+再放弃"一片一提案"。**`BAND_HI` 永远不动** —— 提两条本来就在说同一件事的碎片，
+正是这套机制存在的意义所在。
+
+选完才轮到 LLM，而且它只是个记录员（和 `cards.py` 一样）：把已经选定的这一对
+写成一句可被反对的辩题。它**不能换材料，也不能自己另想一个题**。
+
+#### 两种模式（`NightPrefs.mode`）
+
+| mode | 中文 | 行为 | 花钱吗 |
+|---|---|---|---|
+| `suggest` | 只递给我 | 照样想 n 个，一场都不开，全部停在收件箱 | 只花措辞的那点 |
+| `auto` | 自动开庭 | 同样 n 个，接着真的吵完，早上你看结果 | 是 |
+
+**`token_budget` 是整晚的硬上限，不是每场的。** 跑到没预算就干净地停下，并在
+summary 里说清楚停在第几个。"睡觉时它在干活"不能变成"睡觉时它在刷卡"。
+
+#### 提案的生命周期
+
+```
+夜里跑 ──▶ status="inbox"  ← 没有坐标，不在星图上
+              │
+   收下 ──────┼──▶ status="kept" (+brain_id) ──▶ 后台 enrich ──▶ 成为星图上一颗星
+   不要 ──────┼──▶ status="trashed"            ← 弃稿箱，可捞回
+   换说法 ────┘   同一对碎片重新措辞（**不换碎片** —— 换碎片就是另一个想法了）
+```
+
+提案在被收下之前**不做 embedding**：没人要的东西不值得花向量，而没有向量就没有
+坐标 —— 「星图上只有你点过头的东西」因此是数据结构保证的，不是一句 UI 约定。
+
+#### 调度
+
+`main.py` 的 lifespan 里起一个分钟级 asyncio 循环，不引入调度器依赖。后端不开机
+就不跑 —— 对一个完全跑在用户自己机器上的东西，这是诚实的行为。`last_run` 存
+ISO 日期，所以一天最多自动跑一次；`POST /api/night/run` 无视它，方便当场演示。
+
 ## 4. 【M3】知识群可视化模块 — 比 Obsidian 清楚在哪
 
 ### 4.1 Obsidian 的三个病，我们的三个药
@@ -286,15 +356,50 @@ total = 0.45·惊喜度 + 0.30·可信度 + 0.25·可行性
 GET /api/graph?level=brain                       → 几个星系
 GET /api/graph?level=cluster&brain_id=...        → 带 LLM 标签的星座
 GET /api/graph?level=chunk&brain_id=&cluster_id= → 星点，上限 MAX_RENDER_NODES=2000
+                                                   不带任何 scope = 全副脑的碎片（「展开碎片」档）
 GET /api/graph/chunk/{id}                        → 原文 + 出处 + 标签
 ```
 
 前端拿到后**必须**把 `x/y/z` 复制成 `fx/fy/fz` 并设 `cooldownTicks={0}`，
 否则力导向会把预计算坐标推乱，前面的功夫全白费。
 
+**边有两层**，`GraphLink.kind` 区分：
+
+| kind | 含义 | 来自 |
+|---|---|---|
+| `contains` | 同一个簇 —— 我们本来就知道的关系 | 聚簇结果，只在 scope 内下发 |
+| `cooccur` | **同一场辩论里被一起用过** —— 辩论产生的关系 | `indexing/cooccurrence.py`，`weight` = 场次 |
+
+`cooccur` 的定义是「未被驳回的发言引用的 chunk ∪ 结算卡片连接的 chunk」，
+两两连边；副脑层是它按 `brain_id` 的聚合（丢掉副脑内部自环）。现算不落库 ——
+一场辩论撑死二三十条碎片，全量重算比维护增量表便宜。
+
+星图顶层默认**只画副脑**，`cooccur` 边就是「这套东西到底接通了什么」的一句话答案；
+切到「碎片」档才展开全部星点。
+
+### 4.3.1 想法节点（`level="idea"`）
+
+想法和碎片是**两个集合**，这条线不能合并：
+
+* `chunks` 来自用户的笔记，是 agent **唯一**能引用的东西。
+* `ideas` 是用户或 agent 自己想出来的，永远不进 `analogical_search` 的语料 ——
+  所以 agent 不可能把用户自己的想法当"证据"引用回给用户。agent 可以**读**想法
+  （当辩题、当夜间素材）并重组，但引用不到。这是数据结构保证的，不是 prompt 里
+  写一句"请不要"。
+
+坐标（`indexing/layout.py:layout_ideas`）：
+
+| 状态 | 位置 |
+|---|---|
+| `kept` + 有 `brain_id` | 该副脑里跟它最像的 3 条碎片的均值，再往外推到 `RIM` |
+| `kept` + 无 `brain_id` | 星图正中那圈空处的一个球壳（半径随数量增长） |
+| `inbox` / `trashed` | **没有坐标** —— 没点头的想法不上图 |
+
+`seed` 边把一个想法连到它开出的那场辩论真正用到的东西（副脑层聚合，碎片层直连）。
+
 ### 4.4 三个必须做出来的"演出时刻"
 
-1. **碎念落地**：spark enriched → 相机飞向命中区域 + 命中节点放大 2.4× + 其余变暗。
+1. **想法落地**：idea enrichment=ready → 相机飞向命中区域 + 命中节点放大 2.4× + 其余变暗。
 2. **发言引用**：`turn.done` 带 citations → 对应碎片瞬时点亮（观众看得到 agent 在
    引用"你自己写的东西"）。
 3. **卡片回放**：卡片上「在图上回放这条连接」→ 高亮这几个碎片，展示这条连接
@@ -319,13 +424,13 @@ GET /api/graph/chunk/{id}                        → 原文 + 出处 + 标签
 ```
 brains ──1:n── clusters ──1:n── chunks
    │                              ▲
-sparks ──(hits: chunk_id[])───────┘
+ideas  ──(hits: chunk_id[])───────┘
    │
 debates ──1:n── turns (citations: chunk_id[])
    └──1:n── cards (connection: chunk_id[])
 ```
 
-存储是 **MongoDB**：一个库、八个集合（`brains / clusters / chunks / sparks / debates /
+存储是 **MongoDB**：一个库、八个集合（`brains / clusters / chunks / ideas / debates /
 turns / cards / settings`），`_id` 就是应用生成的字符串 id（`brn_…`、`chk_…`），
 skeleton / hits / blackboard / citations 之类全部是原生子文档，不存 JSON 字串。
 向量以 float32 raw bytes 存成 BSON Binary，相似度用 `numpy` 在进程内点积。
@@ -351,9 +456,11 @@ WEAVE_MONGO_FALLBACK=1                      # 连不上就退内存并 warning�
 | GET/POST | `/api/brains`, `/api/brains/paste`, `/api/brains/upload` | Agent A |
 | PATCH/DELETE | `/api/brains/{id}` | Agent A |
 | GET | `/api/graph`, `/api/graph/chunk/{id}` | Agent C（读）/ A（写） |
-| POST/GET | `/api/sparks`, `/api/sparks/{id}`, `/api/sparks/{id}/rehit` | Agent A |
+| POST/GET | `/api/ideas`, `/api/ideas/{id}`, `/api/ideas/{id}/rehit`, `/api/ideas/{id}/image` | Agent A |
+| PATCH/DELETE | `/api/ideas/{id}` （归档 / 弃稿箱 / 真删） | Agent A |
 | POST/GET | `/api/debates`, `/api/debates/{id}/stream`(SSE), `/turns`, `/cards` | Agent B |
 | GET/POST | `/api/cards`, `/api/cards/{id}/save` | Agent B |
+| GET/PUT/POST | `/api/night`, `/api/night/run`, `/api/night/ideas/{id}/rephrase` | Agent B |
 | GET/PUT | `/api/settings` | Agent A |
 | GET/DELETE | `/api/privacy`, `/api/privacy/all` | Agent A |
 
@@ -414,11 +521,14 @@ brain2/
         ├── indexing/  cluster.py  layout.py
         ├── retrieval/ skeleton.py  analogy.py      ← M2 的技术核心
         ├── debate/    roles.py blackboard.py prompts.py engine.py cards.py
-        └── api/       brains.py graph.py sparks.py debates.py settings.py
+        ├── indexing/  cooccurrence.py                ← 辩论产生的边
+        ├── night/     discovery.py runner.py         ← 它自己找题（§3.10）
+        └── api/       brains.py graph.py ideas.py debates.py settings.py
 └── frontend/src/
     ├── types.ts  api.ts  App.tsx  styles.css
-    └── components/ GalaxyView.tsx SparkBar.tsx DebateTheater.tsx
-                    CardDeck.tsx SettingsDrawer.tsx
+    └── components/ GalaxyView.tsx Eureka.tsx Discoveries.tsx
+                    DebateConsole.tsx DebateTheater.tsx CardDeck.tsx
+                    SettingsDrawer.tsx
 ```
 
 ---
@@ -427,9 +537,9 @@ brain2/
 
 | | Agent A · 副脑基建 | Agent B · 辩论引擎 | Agent C · 前端与演出 |
 |---|---|---|---|
-| **拥有** | `ingest/` `indexing/` `providers/` `api/brains,graph,sparks,settings` | `retrieval/` `debate/` `api/debates` | `frontend/` 全部 |
+| **拥有** | `ingest/` `indexing/` `providers/` `api/brains,graph,ideas,settings` | `retrieval/` `debate/` `api/debates` | `frontend/` 全部 |
 | **不许碰** | `debate/` 内部逻辑、前端 | ingest / 前端 | 后端（除非改 `types.ts` 对应的 `models.py`） |
-| **对外承诺** | `/api/graph` 稳定返回坐标；`/api/sparks` 立即返回 | SSE 事件流按 §3.8；`turn.done` 一定带 `brain_name` | 断网可演；不崩 |
+| **对外承诺** | `/api/graph` 稳定返回坐标；`/api/ideas` 立即返回 | SSE 事件流按 §3.8；`turn.done` 一定带 `brain_name` | 断网可演；不崩 |
 
 **冲突面只有两处**：`models.py`↔`types.ts`，`prompts.py`。
 改这两处必须在群里喊一声。其余各自并行。

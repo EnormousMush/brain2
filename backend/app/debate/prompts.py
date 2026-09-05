@@ -68,13 +68,37 @@ MOTION_SYSTEM = """你是圆桌主持人。给定用户的一句碎念、它的�
 只输出 JSON：{"motion":"辩题(<=45字)","why":"为什么这两个副脑值得碰(<=40字)"}"""
 
 
-def motion_user(spark_text: str, sk: Skeleton, hits) -> str:
+def motion_user(seed_text: str, sk: Skeleton, hits) -> str:
     frags = "\n".join(
         f"[{h.brain_name}] 「{h.text[:180]}」(相似度 {h.score:.2f})" for h in hits[:6]
     )
-    return (f"碎念：「{spark_text}」\n"
+    return (f"碎念：「{seed_text}」\n"
             f"骨架：对象={sk.object} 约束={sk.constraint} 机制={sk.mechanism} 动机={sk.motivation}\n"
             f"跨副脑碎片：\n{frags}")
+
+
+# --------------------------------------------------------------- proposals
+# 夜间发现用的。碎片对是 night/discovery.py 用 numpy 确定性选出来的，模型在这里
+# 只是个记录员：把这一对写成一句话，不许换材料，也不许自己另想一个题。
+PROPOSAL_SYSTEM = """PROPOSAL WRITER。你是圆桌主持人。给定用户**两个不同副脑**里的两条原文碎片，
+写一个"可被证伪的辩题"，把这两条碎片背后的结构连起来。
+硬规则：
+1. 只能用给你的这两条碎片，不许引入它们之外的任何素材，也不许换题。
+2. 辩题必须能被反对。形如「把 A 里的<机制> 搬到 B 的<约束> 上是值得的」。
+3. 不许写成空泛的问句（"如何提升效率？"），不许复述碎片原文。
+只输出 JSON：{"motion":"辩题(<=45字)","why":"为什么这两条值得碰(<=40字)"}"""
+
+
+def proposal_user(src) -> str:
+    names = (src.brain_names + ["?", "?"])[:2]
+    # Quotes are flattened to one line: a chunk can contain blank lines, and the
+    # 「」 in this prompt has to stay a single-line delimiter (the offline mock
+    # parses it with a non-DOTALL regex, and a multi-line quote silently breaks it).
+    quotes = [" ".join((q or "").split())[:220] for q in (src.quotes + ["", ""])[:2]]
+    return (f"把「{names[0]}」和「{names[1]}」这两条放在一起看：\n\n"
+            f"[{names[0]}] {quotes[0]}\n"
+            f"[{names[1]}] {quotes[1]}\n\n"
+            f"（这两条从未在任何一场辩论里同时出现过。）")
 
 
 # ------------------------------------------------------------------- cards

@@ -87,10 +87,10 @@ async def run_debate(debate_id: str) -> AsyncIterator[Event]:
     bb = Blackboard(**row["blackboard"]) if row.get("blackboard") else Blackboard()
 
     # ---------------------------------------------------------------- seed
-    spark = get("sparks", row.get("spark_id"))
-    spark_text = spark["text"] if spark else (row.get("motion") or "")
-    sk = Skeleton(**spark["skeleton"]) if spark and spark.get("skeleton") else Skeleton()
-    qvec = (await embed_texts([skeleton_query(sk, spark_text)]))[0]
+    idea = get("ideas", row.get("idea_id"))
+    seed_text = idea["text"] if idea else (row.get("motion") or "")
+    sk = Skeleton(**idea["skeleton"]) if idea and idea.get("skeleton") else Skeleton()
+    qvec = (await embed_texts([skeleton_query(sk, seed_text)]))[0]
 
     hits = analogical_search(qvec, wildness=cfg.wildness, k=10, min_brains=cfg.min_brains)
     if not hits:
@@ -112,7 +112,7 @@ async def run_debate(debate_id: str) -> AsyncIterator[Event]:
     if not bb.motion:
         try:
             res = await mod.chat(prompts.MOTION_SYSTEM,
-                                 prompts.motion_user(spark_text, sk, hits),
+                                 prompts.motion_user(seed_text, sk, hits),
                                  max_tokens=220, temperature=0.7, json_mode=True)
             bb.motion = (res.json().get("motion") or "").strip()
         except Exception:  # noqa: BLE001

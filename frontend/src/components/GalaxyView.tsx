@@ -13,14 +13,14 @@ const THEME = {
     paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
     hues: ['#A78BFA', '#F472B6', '#38BDF8', '#FBBF24', '#34D399', '#FB7185', '#60A5FA', '#F97316',
            '#2DD4BF', '#E879F9', '#A3E635', '#F59E0B', '#818CF8'],
-    core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true,
+    core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true, idea: '#D6B36A',
     cloudOpacity: 0.9, cloudSize: 5,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
     hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A', '#C98486', '#7A93C9', '#C98E6A',
            '#6FB3AD', '#B784C4', '#9BB56F', '#C4A15F', '#8A8FC9'],
-    core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false,
+    core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false, idea: '#8A6A22',
     cloudOpacity: 0.8, cloudSize: 4,
   },
 }
@@ -48,6 +48,19 @@ const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
   g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.18, color); g.addColorStop(0.45, color + '55'); g.addColorStop(1, color + '00')
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+})
+/** 想法: a four-pointed hollow star. Never a filled disc — that glyph is reserved
+ *  for 碎片, the only thing an agent is allowed to cite. */
+const starTex = (color: string) => canvasTex(`star:${color}`, 128, (ctx, s) => {
+  const c = s / 2, R = s / 2 - 8, r = R * 0.3
+  ctx.beginPath()
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2
+    const rad = i % 2 === 0 ? R : r
+    ctx[i ? 'lineTo' : 'moveTo'](c + Math.cos(a) * rad, c + Math.sin(a) * rad)
+  }
+  ctx.closePath()
+  ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.stroke()
 })
 /** plain disc, anti-aliased edge (clusters and stars) */
 const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
@@ -143,12 +156,13 @@ function segments(pairs: [THREE.Vector3, THREE.Vector3][], color: string, opacit
 interface Props {
   activeIds: string[]
   onPickChunk?: (id: string) => void
+  onPickIdea?: (id: string) => void
   refreshKey?: number
   theme?: 'light' | 'dark'
 }
 interface Crumb { level: Level; id?: string; label: string }
 
-export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
+export default function GalaxyView({ activeIds, onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
   const T = THEME[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
@@ -160,16 +174,23 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const [hover, setHover] = useState<GraphNode | null>(null)
   const [total, setTotal] = useState(0)
   const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
+  const [brainNames, setBrainNames] = useState<Map<string, string>>(new Map())
   const [span, setSpan] = useState(260)
   const [allChunks, setAllChunks] = useState<GraphNode[]>([])
   const wobblers = useRef(new Map<string, THREE.Group>())   // brain id → inner group we drift
 
   useEffect(() => {
-    api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
+    api.brains().then(bs => {
+      setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))
+      setBrainNames(new Map(bs.map(b => [b.id, b.name])))
+    }).catch(() => {})
     api.graph('chunk').then(r => setAllChunks(r.nodes)).catch(() => {})
   }, [refreshKey])
 
+  const [expand, setExpand] = useState(false)   // top level only: 副脑 (default) / 全部碎片
   const here = crumbs[crumbs.length - 1]
+  const top = crumbs.length === 1
+  const level: Level = top && expand ? 'chunk' : here.level
   const hueOf = (brainId: string) => T.hues[(brainIndex.get(brainId) ?? 0) % T.hues.length]
 
   useEffect(() => {
@@ -189,7 +210,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     let alive = true
     const brainId = crumbs.find(c => c.level === 'cluster')?.id
     const clusterId = crumbs.find(c => c.level === 'chunk')?.id
-    api.graph(here.level, here.level === 'brain' ? undefined : brainId, clusterId)
+    api.graph(level, level === 'brain' ? undefined : brainId, clusterId)
       .then(r => {
         if (!alive) return
         setTotal(r.total_chunks)
@@ -203,14 +224,14 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       })
       .catch(() => setData({ nodes: [], links: [] }))
     return () => { alive = false }
-  }, [crumbs, refreshKey])
+  }, [crumbs, expand, refreshKey])
 
   const active = useMemo(() => new Set(activeIds), [activeIds])
   const hitNodes = useMemo(() => allChunks.filter(n => active.has(n.id)), [allChunks, active])
   const hitBrains = useMemo(() => new Set(hitNodes.map(n => n.brain_id)), [hitNodes])
   const hits = useMemo(() =>
-    here.level === 'brain' ? hitNodes : data.nodes.filter(n => active.has(n.id)),
-    [here.level, hitNodes, data.nodes, active])
+    level === 'brain' ? hitNodes : data.nodes.filter(n => active.has(n.id)),
+    [level, hitNodes, data.nodes, active])
   const dimming = active.size > 0 && hits.length > 0
   const isLit = (n: any) => !dimming || active.has(n.id) || (n.level === 'brain' && hitBrains.has(n.id))
 
@@ -237,15 +258,30 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     for (const c of seeds) byBrain.set(c.brain_id, [...(byBrain.get(c.brain_id) || []), c])
 
     // the fragments themselves, as a sparse scatter at their real coordinates
-    if (here.level === 'brain') {
+    if (level === 'brain') {
       for (const [bid, list] of byBrain) {
         const lit = !dimming || hitBrains.has(bid)
         g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, T.additive))
       }
     }
 
+    // expanded top level: fragments have no names, so label each brain's cloud
+    if (top && expand) {
+      const groups = new Map<string, GraphNode[]>()
+      for (const n of data.nodes) if (n.level === 'chunk') groups.set(n.brain_id, [...(groups.get(n.brain_id) ?? []), n])
+      for (const [bid, ns] of groups) {
+        const c = ns.reduce((a, n) => ({ x: a.x + n.x, y: a.y + n.y, z: a.z + n.z }), { x: 0, y: 0, z: 0 })
+        const lit = !dimming || hitBrains.has(bid)
+        const name = brainNames.get(bid)
+        if (!name) continue
+        const s = makeLabel(name, lit ? T.label : T.labelDim, !lit, T.shadow)
+        s.position.set(c.x / ns.length, c.y / ns.length + 40, c.z / ns.length)
+        g.add(s)
+      }
+    }
+
     // wires: hub ↔ hub, and each hub to a few stray particles of other clouds
-    const hubs = data.nodes.filter(n => n.level !== 'chunk')
+    const hubs = data.nodes.filter(n => n.level === 'brain' || n.level === 'cluster')
     // each hub joins its three nearest neighbours (all pairs turns into a web past ~8 brains)
     const pairs: [THREE.Vector3, THREE.Vector3][] = []
     const seen = new Set<string>()
@@ -262,7 +298,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     if (pairs.length) g.add(segments(pairs, T.wire, dark ? 0.1 : 0.08, false))
 
     // hit fragments as bright stars at the top level, plus the constellation
-    if (here.level === 'brain') {
+    if (level === 'brain') {
       for (const n of hits) {
         const st = sprite(coreTex(hueOf(n.brain_id)), 26, 1, T.additive)
         st.position.set(n.x, n.y, n.z)
@@ -285,7 +321,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     scene.add(g)
     chartRef.current = g
     return () => { scene.remove(g) }
-  }, [data, hits, dimming, here.level, span, T, brainIndex, hitBrains, allChunks, crumbs])
+  }, [data, hits, dimming, level, span, T, brainIndex, hitBrains, allChunks, crumbs])
 
   // the whole chart drifts slowly; any pointer interaction pauses it, and it
   // resumes a few seconds after the user lets go
@@ -372,7 +408,8 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   }, [])
 
   const drill = (n: GraphNode) => {
-    if (n.level === 'brain') setCrumbs([...crumbs, { level: 'cluster', id: n.id, label: n.label }])
+    if (n.level === 'idea') onPickIdea?.(n.id)
+    else if (n.level === 'brain') setCrumbs([...crumbs, { level: 'cluster', id: n.id, label: n.label }])
     else if (n.level === 'cluster') setCrumbs([...crumbs, { level: 'chunk', id: n.id, label: n.label }])
     else onPickChunk?.(n.id)
   }
@@ -386,12 +423,18 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
             {c.label}
           </button>
         ))}
+        {top && (
+          <span className="seg">
+            <button className={expand ? '' : 'on'} onClick={() => setExpand(false)}>副脑</button>
+            <button className={expand ? 'on' : ''} onClick={() => setExpand(true)}>碎片</button>
+          </span>
+        )}
         <span className="crumb-meta">
-          {here.level === 'brain'
-            ? `${data.nodes.length} 个副脑 · 共 ${total} 条碎片`
-            : here.level === 'cluster'
-            ? `${data.nodes.length} 个主题 · 共 ${total} 条碎片`
-            : `${data.nodes.length} / ${total} 条碎片`}
+          {level === 'brain'
+            ? `${data.nodes.filter(n => n.level === 'brain').length} 个副脑 · 共 ${total} 条碎片`
+            : level === 'cluster'
+            ? `${data.nodes.filter(n => n.level === 'cluster').length} 个主题 · 共 ${total} 条碎片`
+            : `${data.nodes.filter(n => n.level === 'chunk').length} / ${total} 条碎片`}
         </span>
       </Glass>
 
@@ -408,8 +451,8 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         nodeRelSize={9}
         nodeVal={(n: any) => (n.level === 'brain' ? n.size * n.size * 0.08 : active.has(n.id) ? n.size * 3 : n.size)}
         nodeThreeObject={(n: any) => {
-          const lit = isLit(n)
-          const hue = lit ? hueOf(n.brain_id) : T.dim
+          const lit = isLit(n) || n.level === 'idea'
+          const hue = lit ? (n.brain_id ? hueOf(n.brain_id) : T.idea) : T.dim
           const r = n.level === 'brain' ? n.size * 2.6 : Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
           const g = new THREE.Group()
           if (n.level === 'brain') {
@@ -424,6 +467,12 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
             g.add(inner)
             wobblers.current.set(n.id, inner)
             return g
+          } else if (n.level === 'idea') {
+            const ic = lit ? T.idea : T.dim
+            g.add(sprite(starTex(ic), 22, lit ? 1 : 0.3))
+            const s = makeLabel(n.label, lit ? ic : T.labelDim, !lit, T.shadow, 30, 500)
+            s.position.set(0, 20, 0)
+            g.add(s)
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
@@ -436,9 +485,12 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           }
           return g
         }}
-        linkColor={() => T.wire}
-        linkOpacity={dark ? 0.12 : 0.1}
-        linkWidth={0.3}
+        linkColor={(l: any) => (l.kind === 'cooccur' ? T.core : l.kind === 'seed' ? T.idea : T.wire)}
+        linkOpacity={dark ? 0.35 : 0.3}
+        linkWidth={(l: any) => (l.kind === 'cooccur' ? 0.6 + Math.min(3, l.weight) * 0.5 : l.kind === 'seed' ? 0.8 : 0.3)}
+        linkDirectionalParticles={(l: any) => (l.kind === 'cooccur' ? 2 : 0)}
+        linkDirectionalParticleWidth={2}
+        linkDirectionalParticleSpeed={0.006}
         enableNodeDrag={false}
         onNodeClick={drill as any}
         onNodeHover={(n: any) => setHover(n || null)}

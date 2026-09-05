@@ -3,6 +3,8 @@
 export type Role = 'moderator' | 'proposer' | 'analogist' | 'skeptic' | 'pragmatist'
 export type Stance = 'support' | 'attack' | 'reframe' | 'summary'
 export type Level = 'brain' | 'cluster' | 'chunk'
+// 星图上的节点比 Level 多一种：想法。它不是碎片，agent 引用不到它。
+export type NodeLevel = Level | 'idea'
 
 export interface Brain {
   id: string; name: string; kind: string; color: string
@@ -11,7 +13,7 @@ export interface Brain {
 }
 
 export interface GraphNode {
-  id: string; level: Level; label: string; brain_id: string; color: string
+  id: string; level: NodeLevel; label: string; brain_id: string; color: string
   x: number; y: number; z: number; size: number
   preview?: string | null; source_path?: string | null
   // injected client-side for force-graph pinning
@@ -19,7 +21,9 @@ export interface GraphNode {
 }
 export interface GraphLink {
   source: string; target: string
-  kind: 'contains' | 'similar' | 'hit' | 'citation'; weight: number
+  // cooccur: 同一场辩论里被一起用过，weight = 场次数
+  // seed:    这个想法开出了那场辩论
+  kind: 'contains' | 'similar' | 'hit' | 'citation' | 'cooccur' | 'seed'; weight: number
 }
 export interface GraphResponse {
   level: Level; nodes: GraphNode[]; links: GraphLink[]; total_chunks: number
@@ -33,9 +37,38 @@ export interface Hit {
   chunk_id: string; brain_id: string; brain_name: string
   score: number; band_score: number; text: string; source_path?: string | null
 }
-export interface Spark {
-  id: string; text: string; kind: string; status: string
-  skeleton?: Skeleton | null; hits: Hit[]; created_at: string
+export type IdeaOrigin = 'user' | 'agent'
+export type IdeaKind = 'eureka' | 'motion' | 'proposal'
+export type IdeaStatus = 'inbox' | 'kept' | 'trashed'
+export interface IdeaImage { path: string; caption: string }
+export interface IdeaSource {
+  strategy: 'unconnected' | 'cold'
+  chunk_ids: string[]; brain_ids: string[]; quotes: string[]; brain_names: string[]
+  why: string; score: number
+}
+export interface Idea {
+  id: string; text: string
+  origin: IdeaOrigin; kind: IdeaKind; status: IdeaStatus
+  brain_id?: string | null; brain_name?: string | null
+  image?: IdeaImage | null
+  enrichment: 'pending' | 'ready' | 'failed'
+  skeleton?: Skeleton | null; hits: Hit[]
+  source?: IdeaSource | null
+  debate_id?: string | null; created_at: string
+}
+
+export type NightMode = 'auto' | 'suggest'
+export interface NightPrefs {
+  mode: NightMode; ideas_per_night: number; hour: number; enabled: boolean
+  token_budget: number; wildness: number
+  last_run?: string | null; last_summary?: string | null
+}
+export interface NightStatus {
+  prefs: NightPrefs; running: boolean; inbox: number; trashed: number
+  next_run?: string | null
+}
+export const STRATEGY_CN: Record<string, string> = {
+  unconnected: '从未接通过', cold: '冷区',
 }
 
 export interface Claim {
@@ -60,7 +93,7 @@ export interface DebateConfig {
   mode: 'live' | 'dream'
 }
 export interface Debate {
-  id: string; spark_id?: string | null; motion: string; status: string
+  id: string; idea_id?: string | null; motion: string; status: string
   mode: string; config: DebateConfig; blackboard: Blackboard
   tokens_used: number; created_at: string; ended_at?: string | null
 }

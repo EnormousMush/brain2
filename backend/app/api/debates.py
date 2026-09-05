@@ -16,7 +16,7 @@ router = APIRouter(prefix="/api/debates", tags=["debates"])
 
 def _to_debate(d: dict) -> Debate:
     return Debate(
-        id=d["id"], spark_id=d.get("spark_id"), motion=d.get("motion") or "",
+        id=d["id"], idea_id=d.get("idea_id"), motion=d.get("motion") or "",
         status=d["status"], mode=d.get("mode", "live"),
         config=DebateConfig(**(d.get("config") or {})),
         blackboard=Blackboard(**(d.get("blackboard") or {})),
@@ -29,11 +29,13 @@ def _to_debate(d: dict) -> Debate:
 def create_debate(body: DebateCreate):
     did = nid("dbt")
     insert("debates", dict(
-        id=did, spark_id=body.spark_id, motion=body.motion, status="pending",
+        id=did, idea_id=body.idea_id, motion=body.motion, status="pending",
         config=body.config.model_dump(),
         blackboard=Blackboard(motion=body.motion or "").model_dump(),
         tokens_used=0, mode=body.config.mode, created_at=now(), ended_at=None,
     ))
+    if body.idea_id:
+        update_id("ideas", body.idea_id, {"debate_id": did})
     return _to_debate(get("debates", did))
 
 

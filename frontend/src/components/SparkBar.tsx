@@ -1,32 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
-import type { Spark } from '../types'
+import type { Idea } from '../types'
 import { ArrowRight, Close, Search } from './Icons'
 import { Glass } from '../liquidGlass'
 
 /**
- * Capture lives in the top bar as the search pill (the one control every
- * reference screen has). The enriched result unfolds as an edge-pinned panel
- * on the left, never over the middle of the star chart.
+ * Quick capture in the top bar. One line = one 灵光 (kind "eureka"), stored as
+ * an idea: it lands on the chart, gets a skeleton and analogical hits in the
+ * background, and can be sent to court from the result panel. The richer
+ * note (image, filing to a brain) lives in the 灵光 button; the deliberate
+ * "I want them to argue THIS" entry is 议题台.
  */
 export default function SparkBar({
-  running = false, showResult = true, onDebate, onSpotlight, onHitBrains, onRunExample,
+  running = false, showResult = true, onDebate, onSpotlight, onHitBrains, onRunExample, onCreated,
 }: {
   running?: boolean
   showResult?: boolean
-  onDebate: (spark: Spark, wildness: number) => void
+  onDebate: (idea: Idea, wildness: number) => void
   onSpotlight: (chunkIds: string[]) => void
   onHitBrains?: (counts: Record<string, number>) => void
   onRunExample?: () => void
+  onCreated?: () => void
 }) {
   const [text, setText] = useState('')
-  const [sparks, setSparks] = useState<Spark[]>([])
-  const [selected, setSelected] = useState<Spark | null>(null)
+  const [ideas, setIdeas] = useState<Idea[]>([])
+  const [selected, setSelected] = useState<Idea | null>(null)
   const [wildness, setWildness] = useState(0.5)
   const [focused, setFocused] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { api.sparks().then(setSparks).catch(() => {}) }, [])
+  useEffect(() => { api.ideas({ status: 'kept' }).then(setIdeas).catch(() => {}) }, [])
 
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
@@ -38,63 +41,64 @@ export default function SparkBar({
     return () => window.removeEventListener('keydown', h)
   }, [])
 
-  const light = (s: Spark | null) => {
-    onSpotlight(s ? s.hits.map(h => h.chunk_id) : [])
+  const light = (i: Idea | null) => {
+    onSpotlight(i ? i.hits.map(h => h.chunk_id) : [])
     const counts: Record<string, number> = {}
-    s?.hits.forEach(h => { counts[h.brain_id] = (counts[h.brain_id] || 0) + 1 })
+    i?.hits.forEach(h => { counts[h.brain_id] = (counts[h.brain_id] || 0) + 1 })
     onHitBrains?.(counts)
   }
 
-  const pick = (s: Spark) => { setSelected(s); light(s) }
+  const pick = (i: Idea) => { setSelected(i); light(i) }
 
   const submit = async () => {
     const t = text.trim()
     if (!t) return
     setText('')
-    const optimistic: Spark = {
-      id: `tmp_${Date.now()}`, text: t, kind: 'phrase', status: 'captured',
-      hits: [], created_at: new Date().toISOString(),
+    const optimistic: Idea = {
+      id: `tmp_${Date.now()}`, text: t, origin: 'user', kind: 'eureka', status: 'kept',
+      enrichment: 'pending', hits: [], created_at: new Date().toISOString(),
     }
-    setSparks(s => [optimistic, ...s])
+    setIdeas(s => [optimistic, ...s])
     setSelected(optimistic)
     try {
-      const created = await api.createSpark(t)
-      setSparks(s => [created, ...s.filter(x => x.id !== optimistic.id)])
+      const created = await api.createIdea({ text: t, kind: 'eureka' })
+      setIdeas(s => [created, ...s.filter(x => x.id !== optimistic.id)])
       setSelected(created)
+      onCreated?.()
       poll(created.id)
     } catch {
-      setSparks(s => s.map(x => (x.id === optimistic.id ? { ...x, status: 'failed' } : x)))
+      setIdeas(s => s.map(x => (x.id === optimistic.id ? { ...x, enrichment: 'failed' } : x)))
     }
   }
 
   const poll = (id: string, tries = 0) => {
     if (tries > 20) return
     setTimeout(async () => {
-      const s = await api.spark(id).catch(() => null)
-      if (!s) return
-      setSparks(list => list.map(x => (x.id === id ? s : x)))
-      setSelected(cur => (cur && cur.id === id ? s : cur))
-      if (s.status === 'enriched') light(s)
-      else if (s.status !== 'failed') poll(id, tries + 1)
+      const i = await api.idea(id).catch(() => null)
+      if (!i) return
+      setIdeas(list => list.map(x => (x.id === id ? i : x)))
+      setSelected(cur => (cur && cur.id === id ? i : cur))
+      if (i.enrichment === 'ready') { light(i); onCreated?.() }
+      else if (i.enrichment !== 'failed') poll(id, tries + 1)
     }, 400)
   }
 
   const slide = async (v: number) => {
     setWildness(v)
-    if (!selected || selected.status !== 'enriched') return
-    const s = await api.rehit(selected.id, v).catch(() => null)
-    if (s) {
-      setSelected(s)
-      setSparks(list => list.map(x => (x.id === s.id ? s : x)))
-      light(s)
+    if (!selected || selected.enrichment !== 'ready') return
+    const i = await api.rehit(selected.id, v).catch(() => null)
+    if (i) {
+      setSelected(i)
+      setIdeas(list => list.map(x => (x.id === i.id ? i : x)))
+      light(i)
     }
   }
 
   const close = () => { setSelected(null); light(null) }
-  const brainsHit = (s: Spark) => new Set(s.hits.map(h => h.brain_id)).size
-  const showDrop = focused && text === '' && sparks.length > 0
+  const brainsHit = (i: Idea) => new Set(i.hits.map(h => h.brain_id)).size
+  const showDrop = focused && text === '' && ideas.length > 0
   const pad = (n: number) => String(n).padStart(2, '0')
-  const pending = selected && selected.status === 'captured'
+  const pending = selected && selected.enrichment === 'pending'
 
   return (
     <>
@@ -112,14 +116,15 @@ export default function SparkBar({
         </Glass>
         {showDrop && (
           <Glass className="panel drop">
-            <div className="panel-head"><span className="label">最近</span><span className="label num">{pad(sparks.length)}</span></div>
-            {sparks.slice(0, 6).map(s => (
-              <button key={s.id} className="recent" onMouseDown={() => pick(s)}>
-                <span className={`dot ${s.status}`} />
-                <span className="rtext">{s.text}</span>
+            <div className="panel-head"><span className="label">你记下的</span><span className="label num">{pad(ideas.length)}</span></div>
+            {ideas.slice(0, 6).map(i => (
+              <button key={i.id} className="recent" onMouseDown={() => pick(i)}>
+                <span className={`dot ${i.enrichment}`} />
+                <span className="rtext">{i.text || i.image?.caption || '（图片）'}</span>
                 <span className="rmeta">
-                  {s.status === 'enriched' ? `${pad(brainsHit(s))} 副脑`
-                    : s.status === 'captured' ? '联想中' : s.status}
+                  {i.debate_id ? '已开庭'
+                    : i.enrichment === 'ready' ? `${pad(brainsHit(i))} 副脑`
+                    : i.enrichment === 'pending' ? '联想中' : '失败'}
                 </span>
               </button>
             ))}
@@ -128,14 +133,14 @@ export default function SparkBar({
       </div>
 
       {selected && showResult && (
-        <div className={`panel result${selected.status === 'enriched' ? '' : ' waiting'}`}>
+        <div className={`panel result${selected.enrichment === 'ready' ? '' : ' waiting'}`}>
           <div className="panel-head">
-            <span className="label">{selected.status === 'enriched' ? '问题骨架' : '正在联想'}</span>
+            <span className="label">{selected.enrichment === 'ready' ? '问题骨架' : selected.enrichment === 'failed' ? '联想失败' : '正在联想'}</span>
             <button className="chip-btn small" aria-label="关闭" onClick={close}><Close /></button>
           </div>
           <div className="rc-quote">{selected.text}</div>
 
-          {selected.status === 'enriched' && selected.skeleton && (
+          {selected.enrichment === 'ready' && selected.skeleton && (
             <div className="cells two">
               <div><span className="label">对象</span><span className="val">{selected.skeleton.object || '—'}</span></div>
               <div><span className="label">约束</span><span className="val">{selected.skeleton.constraint || '—'}</span></div>
@@ -144,7 +149,7 @@ export default function SparkBar({
             </div>
           )}
 
-          {selected.status === 'enriched' ? (
+          {selected.enrichment === 'ready' ? (
             <>
               <div className="kpi-row">
                 <div className="kpi"><span className="kpi-v">{pad(brainsHit(selected))}</span><span className="label">副脑命中</span></div>
@@ -159,7 +164,7 @@ export default function SparkBar({
               </div>
               <div className="row-actions">
                 <button className="pill primary" onClick={() => onDebate(selected, wildness)}>
-                  开始辩论 <ArrowRight />
+                  {selected.debate_id ? '看这场辩论' : '开始辩论'} <ArrowRight />
                 </button>
                 {onRunExample && (
                   <button className="pill ghost small" onClick={onRunExample} disabled={running}>
@@ -168,6 +173,8 @@ export default function SparkBar({
                 )}
               </div>
             </>
+          ) : selected.enrichment === 'failed' ? (
+            <div className="label alert">联想失败了。改一句话再试，或者检查模型设置。</div>
           ) : (
             <div className="label pulse">剥离领域名词 · 反相似度检索</div>
           )}
