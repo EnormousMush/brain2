@@ -12,13 +12,13 @@ const THEME = {
     paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
     hues: ['#A855F7', '#F0468C', '#38BDF8', '#FBBF24', '#34D399'],
     core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true,
-    cloudOpacity: 0.36, cloudSize: 4.6,
+    cloudOpacity: 0.9, cloudSize: 5,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
     hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A'],
     core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false,
-    cloudOpacity: 0.32, cloudSize: 4.2,
+    cloudOpacity: 0.8, cloudSize: 4,
   },
 }
 
@@ -85,8 +85,7 @@ function gauss() { // Box–Muller
   const u = 1 - Math.random(), v = Math.random()
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
-/** A nebula seeded by real fragment coordinates: every chunk sprinkles a
- *  handful of particles around itself, so the cloud's shape is the data. */
+/** Points scattered around seed coordinates (sigma 0 = the seeds themselves). */
 function cloud(seeds: GraphNode[], perSeed: number, sigma: number, color: string, size: number,
                opacity: number, additive: boolean): THREE.Points {
   const n = seeds.length * perSeed
@@ -209,15 +208,12 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     const byBrain = new Map<string, GraphNode[]>()
     for (const c of seeds) byBrain.set(c.brain_id, [...(byBrain.get(c.brain_id) || []), c])
 
-    // nebulae: ~900 particles per brain, spread by how many fragments it has
-    for (const [bid, list] of byBrain) {
-      const lit = !dimming || hitBrains.has(bid)
-      const perSeed = Math.min(600, Math.max(60, Math.round(2400 / list.length)))
-      const sigma = here.level === 'brain' ? 34 : 16
-      const hue = lit ? hueOf(bid) : T.dim
-      // two shells: body and a denser core
-      g.add(cloud(list, perSeed, sigma, hue, T.cloudSize, lit ? T.cloudOpacity : 0.08, T.additive))
-      g.add(cloud(list, Math.ceil(perSeed / 2), sigma * 0.45, hue, T.cloudSize * 0.75, lit ? T.cloudOpacity * 1.2 : 0.08, T.additive))
+    // the fragments themselves, as a sparse scatter at their real coordinates
+    if (here.level === 'brain') {
+      for (const [bid, list] of byBrain) {
+        const lit = !dimming || hitBrains.has(bid)
+        g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, T.additive))
+      }
     }
 
     // wires: hub ↔ hub, and each hub to a few stray particles of other clouds
