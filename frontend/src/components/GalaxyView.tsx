@@ -53,39 +53,27 @@ const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
 const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 3, 0, Math.PI * 2); ctx.fill()
 })
-/** a small planet: lit from the upper left, a darker limb, a few soft surface
- *  blotches and a thin rim. Seeded so every brain keeps its own face. */
-function hash(str: string) { let h = 2166136261; for (const ch of str) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) } return h >>> 0 }
-const planetTex = (color: string, seed: string) => canvasTex(`planet:${color}:${seed}`, 256, (ctx, s) => {
+/** a matte sphere: one soft highlight upper-left, a darkened limb, and a very
+ *  fine grain. No surface features — the colour does the talking. */
+const planetTex = (color: string) => canvasTex(`planet:${color}`, 256, (ctx, s) => {
   const c = s / 2, r = s / 2 - 4
-  let h = hash(seed)
-  const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
   ctx.save(); ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.clip()
-  // base: sphere shading
-  const g = ctx.createRadialGradient(c - r * .4, c - r * .45, r * .05, c, c, r)
-  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.08, color); g.addColorStop(0.75, color); g.addColorStop(1, 'rgba(0,0,0,.55)')
-  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
-  ctx.globalCompositeOperation = 'multiply'; ctx.fillStyle = color; ctx.globalAlpha = .35; ctx.fillRect(0, 0, s, s)
-  // surface: soft blotches, darker and lighter
-  ctx.globalCompositeOperation = 'source-over'
-  for (let i = 0; i < 9; i++) {
-    const x = c + (rnd() * 2 - 1) * r * .8, y = c + (rnd() * 2 - 1) * r * .8, rr = r * (0.12 + rnd() * 0.3)
-    const b = ctx.createRadialGradient(x, y, 0, x, y, rr)
-    const dark = rnd() > 0.4
-    b.addColorStop(0, dark ? 'rgba(0,0,0,.28)' : 'rgba(255,255,255,.22)'); b.addColorStop(1, 'rgba(0,0,0,0)')
-    ctx.globalAlpha = 1; ctx.fillStyle = b; ctx.fillRect(0, 0, s, s)
-  }
-  // faint bands
-  ctx.globalAlpha = .12; ctx.strokeStyle = '#000'; ctx.lineWidth = r * .08
-  for (let i = 0; i < 3; i++) { const y = c + (rnd() * 2 - 1) * r * .7; ctx.beginPath(); ctx.ellipse(c, y, r, r * .18, 0, 0, Math.PI * 2); ctx.stroke() }
-  // terminator shadow on the lower right
-  const t = ctx.createRadialGradient(c + r * .55, c + r * .6, r * .1, c + r * .3, c + r * .3, r * 1.2)
-  t.addColorStop(0, 'rgba(0,0,0,.45)'); t.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.globalAlpha = 1; ctx.fillStyle = t; ctx.fillRect(0, 0, s, s)
+  ctx.fillStyle = color; ctx.fillRect(0, 0, s, s)
+  // limb darkening
+  const limb = ctx.createRadialGradient(c, c, r * .55, c, c, r)
+  limb.addColorStop(0, 'rgba(0,0,0,0)'); limb.addColorStop(1, 'rgba(0,0,0,.42)')
+  ctx.fillStyle = limb; ctx.fillRect(0, 0, s, s)
+  // soft highlight
+  const hi = ctx.createRadialGradient(c - r * .42, c - r * .48, 0, c - r * .42, c - r * .48, r * .95)
+  hi.addColorStop(0, 'rgba(255,255,255,.55)'); hi.addColorStop(.35, 'rgba(255,255,255,.14)'); hi.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = hi; ctx.fillRect(0, 0, s, s)
+  // fine grain
+  const img = ctx.getImageData(0, 0, s, s); const d = img.data
+  let h = 1234567
+  for (let i = 0; i < d.length; i += 4) { h = (h * 1664525 + 1013904223) >>> 0; const n = ((h >>> 24) / 255 - .5) * 10
+    d[i] += n; d[i + 1] += n; d[i + 2] += n }
+  ctx.putImageData(img, 0, 0)
   ctx.restore()
-  // rim
-  ctx.globalAlpha = .55; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.5
-  ctx.beginPath(); ctx.arc(c, c, r - 0.5, 0, Math.PI * 2); ctx.stroke()
 })
 
 function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false): THREE.Sprite {
@@ -309,7 +297,23 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     c.autoRotateSpeed = 0.35
     c.autoRotate = !still
     let timer: number | undefined
-    const pause = () => { c.autoRotate = false; window.clearTimeout(timer) }
+    // breathing: while idle the camera eases in and out by ±5% over ~24s,
+    // measured from wherever the user left the zoom
+    let base: number | null = null, phase = 0, raf = 0, lastT = performance.now()
+    const cam = fgRef.current?.camera?.()
+    const breathe = (t: number) => {
+      raf = requestAnimationFrame(breathe)
+      const dt = Math.min(0.05, (t - lastT) / 1000); lastT = t
+      if (!c.autoRotate || !cam || still) { base = null; return }
+      const off = cam.position.clone().sub(c.target)
+      const dist = off.length()
+      if (base === null) { base = dist; phase = 0 }
+      phase += (dt / 24) * Math.PI * 2
+      const want = (base as number) * (1 + 0.05 * Math.sin(phase))
+      cam.position.copy(c.target.clone().add(off.multiplyScalar(want / dist)))
+    }
+    raf = requestAnimationFrame(breathe)
+    const pause = () => { c.autoRotate = false; base = null; window.clearTimeout(timer) }
     const resume = () => { window.clearTimeout(timer); timer = window.setTimeout(() => { c.autoRotate = !still }, 3500) }
     const onDown = () => pause()
     const onUp = () => resume()
@@ -319,6 +323,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     el.addEventListener('wheel', onWheel, { passive: true })
     return () => {
       window.clearTimeout(timer)
+      cancelAnimationFrame(raf)
       el.removeEventListener('pointerdown', onDown)
       window.removeEventListener('pointerup', onUp)
       el.removeEventListener('wheel', onWheel)
@@ -373,16 +378,16 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         nodeId="id"
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
         nodeRelSize={9}
-        nodeVal={(n: any) => (active.has(n.id) ? n.size * 3 : n.size)}
+        nodeVal={(n: any) => (n.level === 'brain' ? n.size * n.size * 0.08 : active.has(n.id) ? n.size * 3 : n.size)}
         nodeThreeObject={(n: any) => {
           const lit = isLit(n)
           const hue = lit ? hueOf(n.brain_id) : T.dim
-          const r = Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
+          const r = n.level === 'brain' ? n.size * 2.6 : Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
           const g = new THREE.Group()
           if (n.level === 'brain') {
             // a small textured planet with a faint halo
             g.add(sprite(coreTex(hue), r * 4.2, lit ? 0.3 : 0.08, T.additive))
-            g.add(sprite(planetTex(hue, n.id), r * 2.1, lit ? 1 : 0.35))
+            g.add(sprite(planetTex(hue), r * 2.1, lit ? 1 : 0.35))
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {

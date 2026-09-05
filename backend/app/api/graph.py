@@ -10,6 +10,8 @@ pins them so the force simulation cannot drift.
 """
 from __future__ import annotations
 
+import hashlib
+
 from fastapi import APIRouter, Query
 
 from ..config import MAX_RENDER_NODES
@@ -17,6 +19,14 @@ from ..db import brain_map, count, find, get
 from ..models import GraphLink, GraphNode, GraphResponse
 
 router = APIRouter(prefix="/api/graph", tags=["graph"])
+
+
+def _brain_size(b: dict) -> float:
+    """Radius grows with the square root of the fragment count, then a
+    deterministic ±18% per brain so equal-sized brains still differ."""
+    n = b.get("chunk_count") or 0
+    seed = int(hashlib.sha1(b["id"].encode()).hexdigest()[:6], 16) / 0xFFFFFF   # 0..1
+    return round((2.4 + 1.9 * n ** 0.5) * (0.82 + 0.36 * seed), 2)
 
 
 @router.get("", response_model=GraphResponse)
@@ -37,7 +47,7 @@ def get_graph(level: str = Query("brain", pattern="^(brain|cluster|chunk)$"),
             cz = sum(c["z"] for c in cs) / len(cs) if cs else 0.0
             nodes.append(GraphNode(id=b["id"], level="brain", label=b["name"],
                                    brain_id=b["id"], color=b["color"], x=cx, y=cy, z=cz,
-                                   size=max(4.0, (b.get("chunk_count") or 0) ** 0.5),
+                                   size=_brain_size(b),
                                    preview=f'{b.get("chunk_count", 0)} 条碎片 · {b.get("kind")}'))
         return GraphResponse(level="brain", nodes=nodes, links=links, total_chunks=total)
 
