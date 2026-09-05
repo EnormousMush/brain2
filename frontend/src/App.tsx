@@ -7,7 +7,7 @@ import SettingsDrawer from './components/SettingsDrawer'
 import SparkBar from './components/SparkBar'
 import type { Brain, Card, Spark } from './types'
 
-type View = 'home' | 'debate' | 'galaxy'
+type View = 'home' | 'debate'
 type Theme = 'light' | 'dark'
 
 function initTheme(): Theme {
@@ -18,8 +18,8 @@ function initTheme(): Theme {
   return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
 }
 
-/** One product, three jobs — but only ever one on screen. Home is capture;
- *  the galaxy and each debate are focused modes you enter and back out of. */
+/** The 星图 is the home; capture is a command bar over it, and a debate is the
+ *  one focused mode you enter and back out of. Two views, nothing stacked. */
 export default function App() {
   const [brains, setBrains] = useState<Brain[]>([])
   const [active, setActive] = useState<string[]>([])
@@ -52,11 +52,6 @@ export default function App() {
     setView('debate')
   }
 
-  const showGalaxy = (chunkIds?: string[]) => {
-    if (chunkIds) setActive(chunkIds)
-    setView('galaxy')
-  }
-
   /** Bulletproof one-click demo: capture a curated cross-domain spark, wait for
    *  the anti-similarity retrieval, then open the debate. */
   const runExample = async () => {
@@ -83,15 +78,29 @@ export default function App() {
     reload()
   }
 
+  const importFiles = async (files: FileList | null) => {
+    if (!files?.length) return
+    const n = prompt('这个副脑叫什么？') || '未命名副脑'
+    await api.upload(n, files); reload()
+  }
+
   const backHome = () => { setView('home'); setActive([]) }
+  const noBrains = brains.length === 0
 
   return (
     <div className="app">
-      <div className="topbar">
+      <div className={`topbar${view === 'home' ? ' over' : ''}`}>
         <button className="brand" onClick={backHome}>
           <span className="dot" /> weave <small>副脑</small>
         </button>
+        {view === 'debate' && <span className="mode-title" style={{ marginLeft: 4 }}>{debateTitle}</span>}
         <div className="spacer" />
+        <label className="file">
+          导入
+          <input type="file" multiple accept=".md,.txt,.zip" hidden
+                 onChange={e => importFiles(e.target.files)} />
+        </label>
+        <button className="tbtn" onClick={importPaste}>粘贴</button>
         <button className="icon-btn" title="切换主题"
                 onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
           {theme === 'dark' ? '☀' : '☾'}
@@ -101,62 +110,55 @@ export default function App() {
 
       {view === 'home' && (
         <div className="home">
-          <SparkBar
-            hasBrains={brains.length > 0}
-            running={running}
-            onDebate={startDebate}
-            onShowGalaxy={showGalaxy}
-            onRunExample={runExample} />
-          <div className="capture" style={{ marginTop: 0 }}>
-            <div className="brains-strip">
-              {brains.map(b => (
-                <span key={b.id} className="chip" style={{ background: b.color }}>
-                  {b.name} <i>{b.chunk_count}</i>
-                </span>
-              ))}
-              <div className="spacer" />
-              {brains.length > 0 && (
-                <button className="ghost" onClick={() => showGalaxy()}>星图 →</button>
-              )}
-              <label className="file">
-                导入
-                <input type="file" multiple accept=".md,.txt,.zip" hidden
-                       onChange={async e => {
-                         if (!e.target.files?.length) return
-                         const n = prompt('这个副脑叫什么？') || '未命名副脑'
-                         await api.upload(n, e.target.files); reload()
-                       }} />
-              </label>
-              <button className="ghost" onClick={importPaste}>粘贴</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {view === 'galaxy' && (
-        <div className="mode galaxy">
-          <div className="mode-head">
-            <button className="back-btn" onClick={backHome}>← 返回</button>
-          </div>
-          <div className="mode-body flush">
+          {!noBrains && (
             <GalaxyView activeIds={active} refreshKey={refresh} theme={theme}
                         onPickChunk={id => setActive([id])} />
-          </div>
+          )}
+          {noBrains ? (
+            <div className="firstrun">
+              <div>
+                <h2>点亮你的第一个副脑</h2>
+                <p>导入一段笔记，Weave 会把它切成碎片，铺成一张星图。</p>
+                <label className="file" style={{ border: '1px solid var(--acc)', color: 'var(--acc)' }}>
+                  导入笔记
+                  <input type="file" multiple accept=".md,.txt,.zip" hidden
+                         onChange={e => importFiles(e.target.files)} />
+                </label>
+              </div>
+            </div>
+          ) : (
+            <SparkBar
+              running={running}
+              onDebate={startDebate}
+              onSpotlight={setActive}
+              onRunExample={runExample} />
+          )}
+          {!noBrains && (
+            <div className="corners">
+              <span className="c-bl">
+                {new Date().toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' })}
+              </span>
+              <span className="c-bc">拖动旋转 · 滚轮缩放 · 点击钻取</span>
+              <span className="c-br">
+                {brains.length} 副脑 · {brains.reduce((n, b) => n + (b.chunk_count || 0), 0)} 碎片
+              </span>
+            </div>
+          )}
         </div>
       )}
 
       {view === 'debate' && (
         <div className="mode">
           <div className="mode-head">
-            <button className="back-btn" onClick={backHome}>← 返回</button>
-            <span className="mode-title">{debateTitle}</span>
+            <button className="back-btn" onClick={backHome}>← 返回星图</button>
           </div>
           <div className="mode-body">
             <div className="debate-wrap">
               <DebateTheater debateId={debateId} onCards={setCards}
                              onActive={setActive}
-                             onCite={ids => showGalaxy(ids)} />
-              <CardDeck cards={cards} onReplay={ids => showGalaxy(ids)}
+                             onCite={ids => { setActive(ids); setView('home') }} />
+              <CardDeck cards={cards}
+                        onReplay={ids => { setActive(ids); setView('home') }}
                         onSaved={c => setCards(cs => cs.map(x => (x.id === c.id ? c : x)))} />
             </div>
           </div>

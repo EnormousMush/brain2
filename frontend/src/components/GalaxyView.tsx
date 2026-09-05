@@ -114,7 +114,9 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   }, [crumbs, refreshKey])
 
   const active = useMemo(() => new Set(activeIds), [activeIds])
-  const dimming = active.size > 0
+  // only spotlight when the current zoom level actually holds a hit, so a
+  // chunk-level spotlight doesn't fade the whole brain-level map to grey.
+  const dimming = active.size > 0 && data.nodes.some(n => active.has(n.id))
 
   // gentle idle rotation gives the map life; pause it while hits are spotlighted
   // so the camera fly-to isn't fought by the orbit.
@@ -168,6 +170,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         height={size.h}
         graphData={data as any}
         backgroundColor={bg}
+        showNavInfo={false}
         nodeId="id"
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
         nodeRelSize={9}
