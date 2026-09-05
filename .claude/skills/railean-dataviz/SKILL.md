@@ -69,6 +69,44 @@ Composition rules for product surfaces:
 - Depth comes from one blurred colored shape behind the frame (`filter: blur(40px)` blob in the accent), never from drop shadows on cards.
 - Motion: values count up (600ms), lines draw in (800ms ease-out), panels fade+rise on mount (300ms, 40ms stagger). Loops only for "live" indicators.
 
+## 2b. The four reference screens the user picked (highest weight)
+
+The user singled out these portfolio pieces. When in doubt, match these, not the homepage.
+
+**A. Robodog — light operations map** (warehouse floor plan)
+- Light register can also be a *product* surface: ground `#F7F8FA`, canvas with a faint dot grid, panels pure white with 16px radius and a 1px `#E6E8EC` border, no shadow.
+- Left icon rail (48px wide, 8 monochrome line icons, active = filled dark chip). Top bar = logo · wide search pill · one gradient action chip · one black pill CTA · avatar.
+- Floor plan drawn in *desaturated pastels*: slate-blue racks `#B8C7DC`, mint zones `#7FC9A5`, sand lanes `#F1DCB3`, route lines 1px `#9AA3AE`, active route in green `#3BAF7A`. Nothing saturated except status dots (red alert).
+- Info cards are compact: label + value inline ("Battery level: 32%") inside a 1px bordered chip, 13px. One product photo (device on white, top-lit) inside the card.
+- Numerals on the map (`96 234 178`) in 16px muted gray — the map is annotated like a blueprint.
+
+**B. CyberDefend — dark globe HUD**
+- Canvas `#0A1017` with a subtle starfield; a large 3D object (globe) sits center-right and *behind* the UI; geodesic wireframe overlay at 20% white; one red hazard marker.
+- Panels: `rgba(20,28,36,.72)` + `backdrop-filter: blur(16px)`, 12px radius, 1px `rgba(255,255,255,.08)`. Panels hug the edges (top-left camera card, bottom strip of four panels); the middle stays empty for the object.
+- Top center = segmented pill nav with a live dot on the active tab. Right = round dial control (compass) with tick marks.
+- Type: Outfit/Lexend-like geometric sans; section labels 11px uppercase letter-spacing .12em `#8A97A6`; hero numerals 28–32px (`9k km/h`) with unit in 14px muted.
+- Charts: a bright cyan line with additive glow over dark, dozens of thin ghost lines behind it; table rows 44px with tiny bar-meters.
+- Timestamps in mono-ish (`T08:39:16.52Z`, `21-11-02T 13:43:18`).
+
+**C. Factory flow — dark green operations board**
+- Canvas `#0D1512` with dot grid; the whole board is a rounded 28px "device" floating over a blurred photo of the real factory (`filter: blur(20px)`, desaturated).
+- One accent = lime `#7CF23A`, used for: the logo mark, the active machine block on the mini-map, the area chart fill, and section icons. Category colors for process steps (blue/green/amber/red) are *muted* fills at ~35% alpha with a white label.
+- Top bar is a timeline ruler (10:05 … 11:10) with colored event dots. Right column = stacked KPI cards, each: icon-in-ring · 12px label · 20px value + unit.
+- Flow diagram: node blocks 128×80, 8px radius, connected by 1px rails with small square ports; parallel "lines" stacked with generous 120px gaps.
+
+**D. EFT energy — dark 3D city map**
+- Canvas near-black `#07090E`; the map is a dark relief with cool blue landmass `#1B2540`; data drawn as *light*: radial arcs, particle streams, cone spikes, ring gauges in cyan/violet/amber at low alpha with additive glow.
+- Left = dense KPI column (cards 12px radius, `#121620`, 1px `#1F2433`): one 28px hero numeral per card (`1,039 MWh`) with 11px labels; small ring gauges (59% 28% 13%) in three hues; sparkline charts with dotted markers.
+- Bottom-right = two pill actions (Copilot, Simulate) with tiny icons, dark fill, 1px border.
+- Hue system: cyan `#39D2C0` production, violet `#8B7CF6` distribution, amber `#F5B63A` cost, rose `#F06A7A` alert — four semantic hues at ≤70% saturation, never as flat fills, only as strokes, glows and gauge arcs.
+
+Common DNA across A–D:
+1. A big spatial object (map / globe / flow / 3D city) owns ≥60% of the screen; UI panels are pinned to edges and *never* cover its center.
+2. Panels are quiet containers: 12–16px radius, 1px border, either white-on-light or glass-on-dark. Content inside is label-over-value, 11px/20–28px.
+3. Data itself carries the color; chrome is gray. On dark, data glows (additive blend, low alpha strokes). On light, data is desaturated pastel.
+4. Every screen has a top bar with a segmented or pill control and exactly one primary pill button.
+5. Icons: 1.5px line icons in rounded-square chips (36–44px), one family.
+
 ## 3. Do / Don't
 
 Do:
@@ -95,6 +133,7 @@ Keep the current paper / carbon / cobalt system for the light chrome (it already
 - **保守 ↔ 疯狂** → segmented pill instead of a range slider when in dark theme.
 - **Brain chips** → outlined pills, active = filled.
 - **Star chart hit state** → hit stars get the accent, everything else drops to `#1E2129`; halo = the blurred blob idiom.
+- **HUD layout (from A–D)** → the star chart owns the center; capture becomes a top search pill; the skeleton/result card and brain list become edge-pinned panels (left rail of icons + one panel), the debate HUD a bottom strip of label-over-value cells; brains as ring gauges (碎片数 / 命中数); constellation lines drawn as glowing additive strokes in dark mode.
 
 ## 5. Asset ledger (read, never copy)
 
