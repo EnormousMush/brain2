@@ -191,7 +191,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   useEffect(() => {
     const scene: THREE.Scene | undefined = fgRef.current?.scene?.()
     if (!scene) return
-    scene.fog = new THREE.Fog(T.paper, span * 2.2, span * 5.2)
+    scene.fog = new THREE.Fog(T.paper, span * 3.2, span * 7.5)
   }, [span, T.paper, data.nodes])
 
   // the chart layer: nebulae, wires, axes, constellation
