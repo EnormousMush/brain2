@@ -51,14 +51,14 @@ export default function SettingsDrawer({
   return (
     <div className="drawer">
       <div className="drawer-head">
-        <b>设置</b><button className="quiet mono" onClick={onClose}>close</button>
+        <b>设置</b><button className="pill ghost small" onClick={onClose}>关闭</button>
       </div>
 
       <section>
         <h4>模型（你自己的 Key，存在本机）</h4>
         <div className="presets">
           {Object.keys(PRESETS).map(k =>
-            <button key={k} className="ghost" onClick={() => addPreset(k)}>+ {k}</button>)}
+            <button key={k} className="pill ghost small" onClick={() => addPreset(k)}>+ {k}</button>)}
         </div>
         {draft.map((p, i) => (
           <div key={i} className="prov">
@@ -72,12 +72,12 @@ export default function SettingsDrawer({
                    onChange={e => upd(i, { embed_model: e.target.value })} />
             <input type="password" placeholder={p.has_key ? '（已保存，留空不改）' : 'API Key'}
                    onChange={e => upd(i, { api_key: e.target.value })} />
-            <button className="ghost" onClick={() => setDraft(d => d.filter((_, j) => j !== i))}>
+            <button className="pill ghost small" onClick={() => setDraft(d => d.filter((_, j) => j !== i))}>
               删除
             </button>
           </div>
         ))}
-        <button className="primary" onClick={save}>保存</button>
+        <button className="pill primary" onClick={save}>保存</button>
         {s?.offline && <p className="warn">当前是离线模式（WEAVE_OFFLINE=1），全部走 mock，不联网。</p>}
       </section>
 
@@ -86,7 +86,7 @@ export default function SettingsDrawer({
         <p className="hint">不同副脑绑不同厂商，辩论时才有真正的异质性。</p>
         {brains.map((b, i) => (
           <div key={b.id} className="bind">
-            <span className={`chip ${['solid', 'screen', 'outline'][i % 3]}`}>{b.name}</span>
+            <span className={`chip d${i % 3}`}>{b.name}</span>
             <select value={b.provider ?? ''}
                     onChange={e => api.patchBrain(b.id, { provider: e.target.value || null })
                       .then(onBrainsChanged)}>
@@ -101,7 +101,7 @@ export default function SettingsDrawer({
         <h4>你的数据在哪</h4>
         <ul>{privacy?.statements.map((t, i) => <li key={i}>{t}</li>)}</ul>
         <code>{privacy?.storage}</code>
-        <button className="danger" onClick={async () => {
+        <button className="pill danger" onClick={async () => {
           if (!confirm('这会永久删除所有副脑、碎念、辩论记录。继续？')) return
           await api.wipe(); onBrainsChanged()
         }}>删除我的副脑</button>

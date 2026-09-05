@@ -1,9 +1,9 @@
 import { api } from '../api'
 import type { Card } from '../types'
 
-/** 结算卡片 as a printed plate: the idea is the headline, the two source
- *  fragments sit side by side with a × between them, and 「为什么是你」 is set
- *  on a screened field so it can never be missed. Never collapse it. */
+/** 结算卡片 as KPI panels: the idea is the headline, the two source fragments
+ *  sit side by side with a × between them, 「为什么是你」 is a highlighted cell,
+ *  and the score strip has one hero numeral with three label-over-value cells. */
 export default function CardDeck({
   cards, onReplay, onSaved,
 }: {
@@ -16,49 +16,50 @@ export default function CardDeck({
   return (
     <div className="deck">
       <div className="deck-head">
-        <span className="mono">02 · 结算</span>
+        <span className="label">结算</span>
         <h3>想法卡片</h3>
-        <span className="mono">{pad(cards.length)}</span>
+        <span className="label num">{pad(cards.length)}</span>
       </div>
       {cards.map((c, ci) => {
         const [a, b] = c.connection
         return (
-          <div key={c.id} className="card">
-            <span className="mono">card {pad(ci + 1)}</span>
+          <div key={c.id} className="panel card">
+            <div className="panel-head">
+              <span className="label">card {pad(ci + 1)}</span>
+              {c.saved && <span className="tag ok">已收藏</span>}
+            </div>
             <h2 className="card-idea">{c.idea}</h2>
 
             {a && b && (
               <div className="card-conn">
                 <div className="conn-q">
-                  <span className="mono">{a.brain_name}</span>
+                  <span className="label acc">{a.brain_name}</span>
                   <p>{a.quote}</p>
-                  {a.source_path && <span className="src">{a.source_path}</span>}
+                  {a.source_path && <span className="label num">{a.source_path}</span>}
                 </div>
                 <div className="conn-x">×</div>
                 <div className="conn-q">
-                  <span className="mono">{b.brain_name}</span>
+                  <span className="label acc">{b.brain_name}</span>
                   <p>{b.quote}</p>
-                  {b.source_path && <span className="src">{b.source_path}</span>}
+                  {b.source_path && <span className="label num">{b.source_path}</span>}
                 </div>
               </div>
             )}
             {c.connection.length > 2 && (
-              <div className="conn-more">+ {c.connection.length - 2} more fragment(s)</div>
+              <div className="label">+ {c.connection.length - 2} more fragment(s)</div>
             )}
 
-            <div className="card-why"><b>为什么是你</b><span>{c.why_you}</span></div>
-            <div className="card-next"><b>本周可做</b><span>{c.next_action}</span></div>
+            <div className="why"><span className="label acc">为什么是你</span><span className="why-t">{c.why_you}</span></div>
+            <div className="next"><span className="label">本周可做</span><span>{c.next_action}</span></div>
 
-            <div className="card-scores">
+            <div className="scores">
+              <div className="hero"><span className="kpi-v big">{c.scores.total.toFixed(2)}</span><span className="label">总分</span></div>
               <Score label="surprise" v={c.scores.surprise} />
               <Score label="credibility" v={c.scores.credibility} />
               <Score label="feasibility" v={c.scores.feasibility} />
-              <span className="card-total">{c.scores.total.toFixed(2)}</span>
-              <div className="card-actions">
-                <button className="ghost mono" onClick={() => onReplay(c.connection.map(x => x.chunk_id))}>
-                  星图回放
-                </button>
-                <button className={`${c.saved ? 'primary' : 'ghost'} mono`}
+              <div className="row-actions">
+                <button className="pill ghost small" onClick={() => onReplay(c.connection.map(x => x.chunk_id))}>星图回放</button>
+                <button className={`pill ${c.saved ? 'primary' : 'ghost'} small`}
                         onClick={() => api.saveCard(c.id, !c.saved).then(onSaved)}>
                   {c.saved ? '已收藏' : '收藏'}
                 </button>
@@ -66,7 +67,7 @@ export default function CardDeck({
             </div>
 
             <details className="card-src">
-              <summary>原文出处 · {pad(c.connection.length)}</summary>
+              <summary className="label">原文出处 · {pad(c.connection.length)}</summary>
               {c.connection.map(x => (
                 <blockquote key={x.chunk_id}>
                   <b>{x.brain_name}</b>{x.source_path && <i>{x.source_path}</i>}
@@ -83,9 +84,10 @@ export default function CardDeck({
 
 function Score({ label, v }: { label: string; v: number }) {
   return (
-    <span className="score">
-      <span>{label} <em>{v.toFixed(2)}</em></span>
+    <div className="score">
+      <span className="kpi-v">{v.toFixed(2)}</span>
+      <span className="label">{label}</span>
       <i style={{ width: `${Math.round(v * 100)}%` }} />
-    </span>
+    </div>
   )
 }

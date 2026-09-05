@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import type { Spark } from '../types'
+import { ArrowRight, Close, Search } from './Icons'
 
 /**
- * Capture — one ruled line over the star map, set in display type so the
- * sentence you are about to write is the loudest thing on the page. ⌘K
- * focuses, Enter records, and the enriched result unfolds as an index plate
- * in the lower left.
+ * Capture lives in the top bar as the search pill (the one control every
+ * reference screen has). The enriched result unfolds as an edge-pinned panel
+ * on the left, never over the middle of the star chart.
  */
 export default function SparkBar({
-  running = false, onDebate, onSpotlight, onRunExample,
+  running = false, showResult = true, onDebate, onSpotlight, onHitBrains, onRunExample,
 }: {
   running?: boolean
+  showResult?: boolean
   onDebate: (spark: Spark, wildness: number) => void
   onSpotlight: (chunkIds: string[]) => void
+  onHitBrains?: (counts: Record<string, number>) => void
   onRunExample?: () => void
 }) {
   const [text, setText] = useState('')
@@ -35,10 +37,14 @@ export default function SparkBar({
     return () => window.removeEventListener('keydown', h)
   }, [])
 
-  const pick = (s: Spark) => {
-    setSelected(s)
-    onSpotlight(s.hits.map(h => h.chunk_id))
+  const light = (s: Spark | null) => {
+    onSpotlight(s ? s.hits.map(h => h.chunk_id) : [])
+    const counts: Record<string, number> = {}
+    s?.hits.forEach(h => { counts[h.brain_id] = (counts[h.brain_id] || 0) + 1 })
+    onHitBrains?.(counts)
   }
+
+  const pick = (s: Spark) => { setSelected(s); light(s) }
 
   const submit = async () => {
     const t = text.trim()
@@ -67,7 +73,7 @@ export default function SparkBar({
       if (!s) return
       setSparks(list => list.map(x => (x.id === id ? s : x)))
       setSelected(cur => (cur && cur.id === id ? s : cur))
-      if (s.status === 'enriched') onSpotlight(s.hits.map(h => h.chunk_id))
+      if (s.status === 'enriched') light(s)
       else if (s.status !== 'failed') poll(id, tries + 1)
     }, 400)
   }
@@ -79,90 +85,91 @@ export default function SparkBar({
     if (s) {
       setSelected(s)
       setSparks(list => list.map(x => (x.id === s.id ? s : x)))
-      onSpotlight(s.hits.map(h => h.chunk_id))
+      light(s)
     }
   }
 
-  const close = () => { setSelected(null); onSpotlight([]) }
+  const close = () => { setSelected(null); light(null) }
   const brainsHit = (s: Spark) => new Set(s.hits.map(h => h.brain_id)).size
   const showDrop = focused && text === '' && sparks.length > 0
   const pad = (n: number) => String(n).padStart(2, '0')
+  const pending = selected && selected.status === 'captured'
 
   return (
     <>
-      <div className="cap-pill">
-        <div className="cap-label"><span className="n">01</span><span>记一句</span></div>
-        <div className="cap-row">
+      <div className="cap">
+        <div className={`search-pill${pending ? ' busy' : ''}`}>
+          <span className="s-ico"><Search /></span>
           <input
             ref={inputRef} value={text} placeholder="此刻在想什么"
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submit() }} />
-          <button className="primary" onClick={submit}>记下</button>
+          <kbd>⌘K</kbd>
+          <button className="pill dark small" onClick={submit}>记下</button>
         </div>
-
-        {showDrop ? (
-          <div className="cap-drop">
-            <div className="dh">recent</div>
+        {showDrop && (
+          <div className="panel drop">
+            <div className="panel-head"><span className="label">最近</span><span className="label num">{pad(sparks.length)}</span></div>
             {sparks.slice(0, 6).map(s => (
               <button key={s.id} className="recent" onMouseDown={() => pick(s)}>
                 <span className={`dot ${s.status}`} />
                 <span className="rtext">{s.text}</span>
                 <span className="rmeta">
-                  {s.status === 'enriched' ? `${pad(brainsHit(s))} brains`
-                    : s.status === 'captured' ? 'linking' : s.status}
+                  {s.status === 'enriched' ? `${pad(brainsHit(s))} 副脑`
+                    : s.status === 'captured' ? '联想中' : s.status}
                 </span>
               </button>
             ))}
           </div>
-        ) : (
-          <div className="cap-foot">
-            <span><kbd>⌘K</kbd> focus</span>
-            <span><kbd>↵</kbd> record</span>
-            {onRunExample && (
-              <button className="link" onClick={onRunExample} disabled={running}>
-                {running ? 'opening' : '试一个例子'}
-              </button>
-            )}
-          </div>
         )}
       </div>
 
-      {selected && selected.status === 'enriched' && (
-        <div className="result-card">
-          <div className="rc-head">
-            <span className="mono">02 · 问题骨架</span>
-            <button className="rc-close" onClick={close}>✕</button>
+      {selected && showResult && (
+        <div className={`panel result${selected.status === 'enriched' ? '' : ' waiting'}`}>
+          <div className="panel-head">
+            <span className="label">{selected.status === 'enriched' ? '问题骨架' : '正在联想'}</span>
+            <button className="chip-btn small" aria-label="关闭" onClick={close}><Close /></button>
           </div>
           <div className="rc-quote">{selected.text}</div>
 
-          {selected.skeleton && (
-            <>
-              <div className="skel">
-                <div><span className="k">object</span><span>{selected.skeleton.object || '—'}</span></div>
-                <div><span className="k">constraint</span><span>{selected.skeleton.constraint || '—'}</span></div>
-                <div><span className="k">mechanism</span><span>{selected.skeleton.mechanism || '—'}</span></div>
-                <div><span className="k">motivation</span><span>{selected.skeleton.motivation || '—'}</span></div>
-              </div>
-              <div className="skel-note">domain nouns removed · retrieval uses the skeleton, not your words</div>
-            </>
+          {selected.status === 'enriched' && selected.skeleton && (
+            <div className="cells two">
+              <div><span className="label">对象</span><span className="val">{selected.skeleton.object || '—'}</span></div>
+              <div><span className="label">约束</span><span className="val">{selected.skeleton.constraint || '—'}</span></div>
+              <div><span className="label">机制</span><span className="val">{selected.skeleton.mechanism || '—'}</span></div>
+              <div><span className="label">动机</span><span className="val">{selected.skeleton.motivation || '—'}</span></div>
+            </div>
           )}
 
-          <div className="hit-line">
-            跳过最相似的结果，命中 <b>{brainsHit(selected)} 个副脑</b> 的 {selected.hits.length} 条中距离碎片
-          </div>
-
-          <div className="wild-inline">
-            <span>保守</span>
-            <input type="range" min={0} max={1} step={0.05} value={wildness}
-                   onChange={e => slide(parseFloat(e.target.value))} />
-            <span>疯狂</span><b>{wildness.toFixed(2)}</b>
-          </div>
-
-          <div className="result-actions">
-            <button className="primary" onClick={() => onDebate(selected, wildness)}>开始辩论 →</button>
-          </div>
+          {selected.status === 'enriched' ? (
+            <>
+              <div className="kpi-row">
+                <div className="kpi"><span className="kpi-v">{pad(brainsHit(selected))}</span><span className="label">副脑命中</span></div>
+                <div className="kpi"><span className="kpi-v">{pad(selected.hits.length)}</span><span className="label">中距离碎片</span></div>
+                <div className="kpi"><span className="kpi-v">{wildness.toFixed(2)}</span><span className="label">疯狂度</span></div>
+              </div>
+              <div className="slider-row">
+                <span className="label">保守</span>
+                <input type="range" min={0} max={1} step={0.05} value={wildness}
+                       onChange={e => slide(parseFloat(e.target.value))} />
+                <span className="label">疯狂</span>
+              </div>
+              <div className="row-actions">
+                <button className="pill primary" onClick={() => onDebate(selected, wildness)}>
+                  开始辩论 <ArrowRight />
+                </button>
+                {onRunExample && (
+                  <button className="pill ghost small" onClick={onRunExample} disabled={running}>
+                    {running ? '开庭中' : '试一个例子'}
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="label pulse">剥离领域名词 · 反相似度检索</div>
+          )}
         </div>
       )}
     </>

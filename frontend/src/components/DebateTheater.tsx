@@ -4,17 +4,12 @@ import { ROLE_CN, STANCE_CN } from '../types'
 import type { Card, Role, Turn } from '../types'
 
 /**
- * 副脑辩论剧场. The debate IS the demo, so it must arrive one turn at a time —
- * a spinner followed by a wall of text kills the room. Everything below renders
- * off the SSE stream from /api/debates/{id}/stream.
- *
- * Printed-transcript layout: a narrow left column carries index, role and the
- * brain it speaks for; the right column carries the words. Rejected turns stay
- * in the record, struck through, with the referee's reason in mono.
+ * 副脑辩论剧场 as a HUD: a motion panel, four cast cells, a metadata band
+ * (ROUND / TURNS / TOKENS / STATUS) and a transcript panel that grows one row
+ * per turn. Rejected turns stay in the record with the referee's reason.
  */
 const ROLE_EN: Record<Role, string> = {
-  moderator: 'MOD', proposer: 'PROPOSER', analogist: 'ANALOGIST',
-  skeptic: 'SKEPTIC', pragmatist: 'PRAGMATIST',
+  moderator: 'MOD', proposer: 'PROPOSER', analogist: 'ANALOGIST', skeptic: 'SKEPTIC', pragmatist: 'PRAGMATIST',
 }
 const STANCE_GLYPH: Record<string, string> = { support: '+', attack: '−', reframe: '~', summary: '=' }
 
@@ -27,8 +22,8 @@ export default function DebateTheater({
 }: {
   debateId: string | null
   onCards: (c: Card[]) => void
-  onCite: (chunkIds: string[]) => void      // explicit: take me to the galaxy
-  onActive: (chunkIds: string[]) => void    // silent: remember what's lit
+  onCite: (chunkIds: string[]) => void
+  onActive: (chunkIds: string[]) => void
 }) {
   const [motion, setMotion] = useState('')
   const [roles, setRoles] = useState<{ role: Role; cn: string; brain_name: string }[]>([])
@@ -62,65 +57,60 @@ export default function DebateTheater({
       else if (type === 'card.created') { cards.push(data); onCards([...cards]) }
       else if (type === 'debate.ended') setEnded(data)
     })
-    return stop                        // stop the stream on unmount — costs money
+    return stop
   }, [debateId])
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [entries.length])
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [entries.length])
 
-  if (!debateId) return <div className="empty">preparing</div>
+  if (!debateId) return <div className="panel"><span className="label">正在准备辩论</span></div>
 
   const streaming = !ended
   const turns = entries.filter(e => e.kind === 'turn').length
   const pad = (n: number) => String(n).padStart(2, '0')
+  const status = ended ? (ended.reason === 'converged' ? '已收敛' : ended.reason === 'budget' ? '预算用尽' : '轮次用尽') : '进行中'
 
   return (
     <div className="theater">
-      <div className="motion-block">
-        <span className="mono">01 · 辩题</span>
+      <div className="panel motion-panel">
+        <span className="label">辩题</span>
         <h1 className={`motion${motion ? '' : ' pending'}`}>{motion || '主持人正在拟题'}</h1>
+        <div className="cast">
+          {roles.map((r, i) => (
+            <div key={r.role} className="cell">
+              <span className="label">{pad(i + 1)} {ROLE_EN[r.role]}</span>
+              <span className="val">{ROLE_CN[r.role]}</span>
+              <span className="sub acc">{r.brain_name ?? '—'}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="cast">
-        {roles.map((r, i) => (
-          <div key={r.role} className="cast-chip">
-            <span className="mono">{pad(i + 1)} {ROLE_EN[r.role]}</span>
-            <b>{ROLE_CN[r.role]}</b>
-            <span className="brain">{r.brain_name ?? '—'}</span>
-          </div>
-        ))}
+      <div className="band inline">
+        <div className="cell"><span className="label">{streaming && <i className="live" />}round</span><span className="val">{pad(round)}</span></div>
+        <div className="cell"><span className="label">turns</span><span className="val">{pad(turns)}</span></div>
+        <div className="cell"><span className="label">tokens</span><span className="val">{tokens.toLocaleString()}</span></div>
+        <div className="cell"><span className="label">status</span><span className={`val${ended ? '' : ' acc'}`}>{status}</span></div>
       </div>
 
-      <div className="hud">
-        {streaming && <span className="live" />}
-        <span>round {pad(round)}</span>
-        <span>{pad(turns)} turns</span>
-        <span>{tokens} tok</span>
-        {ended && <span className="end">
-          {ended.reason === 'converged' ? '已收敛' : ended.reason === 'budget' ? '预算用尽' : '轮次用尽'}
-        </span>}
-      </div>
-
-      <div className="stream">
+      <div className="panel transcript">
         {entries.map((e, i) => e.kind === 'turn' ? (
           <div key={e.t.id} className="turn">
             <div className="turn-side">
-              <span className="idx">{pad(e.t.round)}.{pad(e.t.seq + 1)}</span>
+              <span className="label num">{pad(e.t.round)}.{pad(e.t.seq + 1)}</span>
               <b>{ROLE_CN[e.t.role]}</b>
               <span className="brain">{e.t.brain_name}</span>
             </div>
             <div className="turn-main">
               <div className="turn-head">
                 {e.t.stance && (
-                  <span className={`stance ${e.t.stance}`}>
-                    {STANCE_GLYPH[e.t.stance]} {STANCE_CN[e.t.stance] ?? e.t.stance}
-                  </span>
+                  <span className={`tag ${e.t.stance}`}>{STANCE_GLYPH[e.t.stance]} {STANCE_CN[e.t.stance] ?? e.t.stance}</span>
                 )}
-                {e.t.novelty != null && <span className="nov">novelty {e.t.novelty.toFixed(2)}</span>}
+                {e.t.novelty != null && <span className="label num">novelty {e.t.novelty.toFixed(2)}</span>}
               </div>
               <div className="turn-body">{e.t.body}</div>
               {e.t.citations.length > 0 && (
-                <button className="cite" onClick={() => onCite(e.t.citations)}>
-                  引用 {e.t.citations.length} 条原文 → 星图
+                <button className="link-btn" onClick={() => onCite(e.t.citations)}>
+                  引用 {e.t.citations.length} 条原文 · 在星图看
                 </button>
               )}
             </div>
@@ -128,11 +118,12 @@ export default function DebateTheater({
         ) : (
           <div key={`x${i}`} className="turn rejected">
             <div className="turn-side">
-              <span className="idx">{pad(e.round)}.{pad(e.seq)}</span>
+              <span className="label num">{pad(e.round)}.{pad(e.seq)}</span>
               <b>{ROLE_CN[e.role as Role] ?? e.role}</b>
             </div>
             <div className="turn-main">
-              <div className="reason"><b>判定无效</b> · {e.reason}</div>
+              <span className="tag reject">判定无效</span>
+              <span className="reason">{e.reason}</span>
             </div>
           </div>
         ))}

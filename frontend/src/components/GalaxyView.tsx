@@ -10,8 +10,8 @@ import type { GraphLink, GraphNode, Level } from '../types'
 const INK = {
   light: { paper: '#FAFAF7', label: '#242321', labelDim: '#96958E', shadow: 'rgba(250,250,247,0.95)',
            plates: ['#2148B8', '#6F87D1', '#A8B6E3'], dim: '#E4E4DF', hair: '#C9CFE6', dust: '#A8B6E3' },
-  dark:  { paper: '#1C1C1B', label: '#EDECE6', labelDim: '#7A7973', shadow: 'rgba(28,28,27,0.95)',
-           plates: ['#7D96E4', '#5D74BF', '#3E4E80'], dim: '#2A2A29', hair: '#3A4360', dust: '#3E4E80' },
+  dark:  { paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
+           plates: ['#8AA4F0', '#5D74BF', '#3E4E80'], dim: '#1E2129', hair: '#243040', dust: '#3E4E80' },
 }
 
 /* ------------------------------------------------------------ textures */
@@ -40,8 +40,9 @@ const haloTex = (color: string) => canvasTex(`halo:${color}`, 128, (ctx, s) => {
   ctx.globalAlpha = 0.28; ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
 })
 
-function sprite(tex: THREE.Texture, size: number, opacity = 1): THREE.Sprite {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity }))
+function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false): THREE.Sprite {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity,
+                                                        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending }))
   s.scale.set(size, size, 1)
   return s
 }
@@ -122,7 +123,8 @@ interface Props {
 interface Crumb { level: Level; id?: string; label: string }
 
 export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
-  const ink = INK[theme === 'dark' ? 'dark' : 'light']
+  const dark = theme === 'dark'
+  const ink = INK[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<THREE.Group | null>(null)
@@ -246,12 +248,13 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       pts.push(pts[0].clone())
       const geo = new THREE.BufferGeometry().setFromPoints(pts)
       const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: ink.plates[0], dashSize: 6, gapSize: 4,
-                                                                      transparent: true, opacity: 0.9, depthWrite: false }))
+                                                                      transparent: true, opacity: 0.9, depthWrite: false,
+                                                                      blending: dark ? THREE.AdditiveBlending : THREE.NormalBlending }))
       line.computeLineDistances()
       g.add(line)
       // ink bleed behind each hit
       for (const n of hits) {
-        const h = sprite(haloTex(plateOf(n)), Math.sqrt(n.size * 3) * 9 * 4.2)
+        const h = sprite(haloTex(plateOf(n)), Math.sqrt(n.size * 3) * 9 * (dark ? 5 : 4.2), 1, dark)
         h.position.set(n.x, n.y, n.z)
         g.add(h)
       }
@@ -260,7 +263,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     scene.add(g)
     chartRef.current = g
     return () => { scene.remove(g) }
-  }, [data, hits, dimming, here.level, span, ink, brainIndex, hitBrains])
+  }, [data, hits, dimming, here.level, span, ink, brainIndex, hitBrains, dark])
 
   // gentle idle rotation; pause it while hits are spotlighted so the fly-to isn't fought
   useEffect(() => {
