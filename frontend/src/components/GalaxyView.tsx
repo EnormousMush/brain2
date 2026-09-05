@@ -1,7 +1,37 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
+import * as THREE from 'three'
 import { api } from '../api'
 import type { GraphLink, GraphNode, Level } from '../types'
+
+/** A crisp always-on text label as a camera-facing sprite. Built from a canvas
+ *  so we need no extra dependency (three is already here for the graph). */
+function makeLabel(text: string, color: string, dim: boolean, shadow: string): THREE.Sprite {
+  const fs = 48, pad = 10
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const measure = document.createElement('canvas').getContext('2d')!
+  const font = `600 ${fs}px -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif`
+  measure.font = font
+  const w = Math.ceil(measure.measureText(text).width) + pad * 2
+  const h = fs + pad * 2
+  const canvas = document.createElement('canvas')
+  canvas.width = w * dpr; canvas.height = h * dpr
+  const ctx = canvas.getContext('2d')!
+  ctx.scale(dpr, dpr)
+  ctx.font = font
+  ctx.textBaseline = 'middle'
+  ctx.shadowColor = shadow; ctx.shadowBlur = 7
+  ctx.fillStyle = color
+  ctx.globalAlpha = dim ? 0.3 : 1
+  ctx.fillText(text, pad, h / 2)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.minFilter = THREE.LinearFilter
+  const sprite = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }))
+  const scale = 0.34
+  sprite.scale.set(w * scale, h * scale, 1)
+  return sprite
+}
 
 /**
  * 知识群可视化 — three deliberate departures from Obsidian's hairball:
@@ -21,12 +51,19 @@ interface Props {
   activeIds: string[]                 // chunk ids to spotlight
   onPickChunk?: (id: string) => void
   refreshKey?: number
+  theme?: 'light' | 'dark'
 }
 
 interface Crumb { level: Level; id?: string; label: string }
 
-export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: Props) {
+export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
+  const light = theme === 'light'
+  const bg = light ? '#faf6ef' : '#0e0b08'
+  const labelLit = light ? '#2b2318' : '#ece6dc'
+  const labelShadow = light ? 'rgba(255,253,248,0.9)' : 'rgba(0,0,0,0.9)'
   const fgRef = useRef<any>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ level: 'brain', label: '全部副脑' }])
   const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>(
     { nodes: [], links: [] })
@@ -34,6 +71,21 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: P
   const [total, setTotal] = useState(0)
 
   const here = crumbs[crumbs.length - 1]
+
+  // react-force-graph-3d does not size itself to its parent; without an explicit
+  // width/height the canvas renders at 0×0 (invisible). Track the container.
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => {
+      const r = el.getBoundingClientRect()
+      setSize({ w: Math.round(r.width), h: Math.round(r.height) })
+    })
+    ro.observe(el)
+    const r = el.getBoundingClientRect()
+    setSize({ w: Math.round(r.width), h: Math.round(r.height) })
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -48,6 +100,14 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: P
           nodes: r.nodes.map(n => ({ ...n, fx: n.x, fy: n.y, fz: n.z })),
           links: r.links,
         })
+        // Frame the whole cloud from a fixed distance centered on the origin.
+        // A fixed distance (rather than zoomToFit) keeps every node in view as
+        // the map slowly auto-rotates; the layout lives in a ~±250 box.
+        if (r.nodes.length) setTimeout(() => {
+          const span = Math.max(220, ...r.nodes.flatMap(n =>
+            [Math.abs(n.x || 0), Math.abs(n.y || 0), Math.abs(n.z || 0)]))
+          fgRef.current?.cameraPosition({ x: 0, y: 0, z: span * 2.7 }, { x: 0, y: 0, z: 0 }, 600)
+        }, 120)
       })
       .catch(() => setData({ nodes: [], links: [] }))
     return () => { alive = false }
@@ -55,6 +115,15 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: P
 
   const active = useMemo(() => new Set(activeIds), [activeIds])
   const dimming = active.size > 0
+
+  // gentle idle rotation gives the map life; pause it while hits are spotlighted
+  // so the camera fly-to isn't fought by the orbit.
+  useEffect(() => {
+    const c = fgRef.current?.controls?.()
+    if (!c) return
+    c.autoRotate = !dimming
+    c.autoRotateSpeed = 0.55
+  }, [dimming, data.nodes])
 
   // fly the camera to the centroid of the活跃 nodes when a spark lands
   useEffect(() => {
@@ -76,7 +145,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: P
   }
 
   return (
-    <div className="galaxy">
+    <div className="galaxy" ref={wrapRef}>
       <div className="crumbs">
         {crumbs.map((c, i) => (
           <button key={i} onClick={() => setCrumbs(crumbs.slice(0, i + 1))}
@@ -85,28 +154,42 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0 }: P
           </button>
         ))}
         <span className="crumb-meta">
-          {data.nodes.length} / {total} 碎片 · {here.level === 'brain' ? '副脑层'
-            : here.level === 'cluster' ? '主题层' : '碎片层'}
+          {here.level === 'brain'
+            ? `${data.nodes.length} 个副脑 · 共 ${total} 条碎片`
+            : here.level === 'cluster'
+            ? `${data.nodes.length} 个主题 · 共 ${total} 条碎片`
+            : `${data.nodes.length} / ${total} 条碎片`}
         </span>
       </div>
 
       <ForceGraph3D
         ref={fgRef}
+        width={size.w}
+        height={size.h}
         graphData={data as any}
-        backgroundColor="#0b0e14"
+        backgroundColor={bg}
         nodeId="id"
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
-        nodeVal={(n: any) => (active.has(n.id) ? n.size * 2.4 : n.size)}
+        nodeRelSize={9}
+        nodeVal={(n: any) => (active.has(n.id) ? n.size * 3 : n.size)}
         nodeColor={(n: any) =>
-          !dimming || active.has(n.id) ? n.color : 'rgba(120,130,150,0.08)'}
-        nodeOpacity={0.92}
-        nodeResolution={8}
+          !dimming || active.has(n.id) ? n.color : 'rgba(120,130,150,0.06)'}
+        nodeOpacity={0.95}
+        nodeResolution={16}
+        nodeThreeObjectExtend
+        nodeThreeObject={(n: any) => {
+          if (n.level === 'chunk') return new THREE.Object3D()  // stars stay clean
+          const lit = !dimming || active.has(n.id)
+          const s = makeLabel(n.label, lit ? labelLit : '#9a8d79', !lit, labelShadow)
+          s.position.set(0, (n.size + 3) * 4, 0)
+          return s
+        }}
         linkColor={(l: any) => (l.kind === 'hit' ? '#e0af68' : 'rgba(120,130,150,0.14)')}
         linkWidth={(l: any) => (l.kind === 'hit' ? 1.4 : 0.3)}
-        linkDirectionalParticles={(l: any) => (l.kind === 'hit' ? 3 : 0)}
-        linkDirectionalParticleWidth={2}
+        linkDirectionalParticles={(l: any) => (l.kind === 'hit' ? 4 : 0)}
+        linkDirectionalParticleWidth={2.4}
+        linkDirectionalParticleSpeed={0.012}
         enableNodeDrag={false}
-        cooldownTicks={0}         /* positions are pinned; no simulation needed */
         onNodeClick={drill as any}
         onNodeHover={(n: any) => setHover(n || null)}
       />

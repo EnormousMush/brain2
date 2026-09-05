@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { streamDebate } from '../api'
-import { ROLE_CN, STANCE_COLOR } from '../types'
+import { ROLE_CN, STANCE_CN, STANCE_COLOR } from '../types'
 import type { Card, Role, Turn } from '../types'
 
 /**
@@ -14,11 +14,12 @@ import type { Card, Role, Turn } from '../types'
  *     attack"). Visible refereeing is the proof that this is not a nodding circle.
  */
 export default function DebateTheater({
-  debateId, onCards, onCite,
+  debateId, onCards, onCite, onActive,
 }: {
   debateId: string | null
   onCards: (c: Card[]) => void
-  onCite: (chunkIds: string[]) => void
+  onCite: (chunkIds: string[]) => void      // explicit: take me to the galaxy
+  onActive: (chunkIds: string[]) => void    // silent: remember what's lit
 }) {
   const [motion, setMotion] = useState('')
   const [roles, setRoles] = useState<{ role: Role; cn: string; brain_name: string }[]>([])
@@ -39,7 +40,7 @@ export default function DebateTheater({
       else if (type === 'turn.done') {
         setTurns(t => [...t, data])
         setTokens(x => x + (data.tokens || 0))
-        if (data.citations?.length) onCite(data.citations)
+        if (data.citations?.length) onActive(data.citations)
       }
       else if (type === 'turn.rejected') setRejects(r => [...r, data])
       else if (type === 'card.created') { cards.push(data); onCards([...cards]) }
@@ -50,11 +51,9 @@ export default function DebateTheater({
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns.length])
 
-  if (!debateId) return (
-    <div className="theater empty">
-      挑一条碎念，点「开庭 →」，让你的几个副脑吵一架。
-    </div>
-  )
+  if (!debateId) return <div className="empty">正在准备辩论…</div>
+
+  const streaming = !ended
 
   return (
     <div className="theater">
@@ -72,9 +71,10 @@ export default function DebateTheater({
       </div>
 
       <div className="hud">
+        {streaming && <span className="live" />}
         第 {round} 轮 · {turns.length} 次发言 · ~{tokens} tokens
-        {ended && <b> · 结束（{ended.reason === 'converged' ? '已收敛'
-          : ended.reason === 'budget' ? '预算用尽' : '轮次用尽'}）</b>}
+        {ended && <> · {ended.reason === 'converged' ? '已收敛'
+          : ended.reason === 'budget' ? '预算用尽' : '轮次用尽'}</>}
       </div>
 
       <div className="stream">
@@ -84,7 +84,7 @@ export default function DebateTheater({
             <div className="turn-head">
               <b>{ROLE_CN[t.role]}</b>
               <span className="brain">{t.brain_name}</span>
-              <span className="stance">{t.stance}</span>
+              <span className="stance">{t.stance ? STANCE_CN[t.stance] ?? t.stance : ''}</span>
               {t.novelty != null && <span className="nov">新意 {t.novelty.toFixed(2)}</span>}
             </div>
             <div className="turn-body">{t.body}</div>

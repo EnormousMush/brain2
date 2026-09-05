@@ -14,18 +14,19 @@ export default function CardDeck({
   if (!cards.length) return null
   return (
     <div className="deck">
+      <div className="deck-head">想法卡片 · {cards.length}</div>
       {cards.map(c => (
         <div key={c.id} className="card">
           <div className="card-conn">
             {c.connection.map((x, i) => (
               <span key={x.chunk_id}>
                 {i > 0 && <em> × </em>}
-                <span className="chip" title={x.quote}>{x.brain_name}</span>
+                <span className="conn-brain" title={x.quote}>{x.brain_name}</span>
               </span>
             ))}
             <button className="ghost"
                     onClick={() => onReplay(c.connection.map(x => x.chunk_id))}>
-              在图上回放这条连接
+              在星图回放
             </button>
           </div>
 
@@ -39,6 +40,7 @@ export default function CardDeck({
             <Score label="可信" v={c.scores.credibility} />
             <Score label="可行" v={c.scores.feasibility} />
             <b>{c.scores.total.toFixed(2)}</b>
+            <div className="spacer" />
             <button className={c.saved ? 'primary' : 'ghost'}
                     onClick={() => api.saveCard(c.id, !c.saved).then(onSaved)}>
               {c.saved ? '已收藏' : '收藏'}

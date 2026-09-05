@@ -99,5 +99,8 @@ export const ROLE_CN: Record<Role, string> = {
   skeptic: '怀疑者', pragmatist: '实践者',
 }
 export const STANCE_COLOR: Record<string, string> = {
-  support: '#9ece6a', attack: '#f7768e', reframe: '#bb9af7', summary: '#7dcfff',
+  support: '#7fa86a', attack: '#d9704f', reframe: '#b98bd3', summary: '#7aa2c2',
+}
+export const STANCE_CN: Record<string, string> = {
+  support: '支持', attack: '反对', reframe: '重构', summary: '小结',
 }
