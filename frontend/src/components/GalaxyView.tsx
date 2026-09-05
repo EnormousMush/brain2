@@ -10,7 +10,7 @@ function makeLabel(text: string, color: string, dim: boolean, shadow: string): T
   const fs = 48, pad = 10
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const measure = document.createElement('canvas').getContext('2d')!
-  const font = `700 ${fs}px "IBM Plex Serif", "Songti SC", "Noto Serif SC", Georgia, serif`
+  const font = `700 ${fs}px "Helvetica Neue", "PingFang SC", -apple-system, sans-serif`
   measure.font = font
   const w = Math.ceil(measure.measureText(text).width) + pad * 2
   const h = fs + pad * 2
@@ -78,7 +78,7 @@ interface Crumb { level: Level; id?: string; label: string }
 
 export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
-  const bg = 'rgba(0,0,0,0)'          // paper + dot grid come from CSS behind the canvas
+  const bg = dark ? '#1C1C1B' : '#FAFAF7'
   const labelLit = dark ? '#EDECE6' : '#242321'
   const labelDim = dark ? '#7A7973' : '#96958E'
   const labelShadow = dark ? 'rgba(28,28,27,0.95)' : 'rgba(250,250,247,0.95)'
@@ -95,10 +95,6 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const [hover, setHover] = useState<GraphNode | null>(null)
   const [total, setTotal] = useState(0)
   const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
-  const [, setFontsReady] = useState(false)   // labels are canvas-drawn: rebuild once the serif arrives
-  useEffect(() => {
-    document.fonts?.load('700 48px "IBM Plex Serif"').then(() => setFontsReady(true)).catch(() => {})
-  }, [])
   useEffect(() => {
     api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
   }, [refreshKey])
@@ -156,9 +152,8 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   useEffect(() => {
     const c = fgRef.current?.controls?.()
     if (!c) return
-    const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-    c.autoRotate = !dimming && !still
-    c.autoRotateSpeed = 0.45
+    c.autoRotate = !dimming
+    c.autoRotateSpeed = 0.55
   }, [dimming, data.nodes])
 
   // fly the camera to the centroid of the活跃 nodes when a spark lands
