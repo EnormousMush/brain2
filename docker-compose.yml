@@ -1,0 +1,14 @@
+# Local MongoDB for Weave. `docker compose up -d mongo`
+# Data lives in a named volume so it survives container restarts.
+services:
+  mongo:
+    image: mongo:7
+    container_name: weave-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - weave_mongo:/data/db
+    restart: unless-stopped
+
+volumes:
+  weave_mongo:

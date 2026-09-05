@@ -1,0 +1,10 @@
+data/
+data_smoke/
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+*.tsbuildinfo
+.DS_Store
+.env
