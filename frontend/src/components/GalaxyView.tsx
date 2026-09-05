@@ -3,6 +3,7 @@ import ForceGraph3D from 'react-force-graph-3d'
 import * as THREE from 'three'
 import { api } from '../api'
 import type { GraphLink, GraphNode, Level } from '../types'
+import { Glass } from '../liquidGlass'
 
 /* ------------------------------------------------------------------ hues
    Each brain owns one hue. Dark = saturated light on a near-black canvas
@@ -276,7 +277,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
 
   return (
     <div className="galaxy" ref={wrapRef}>
-      <div className="crumbs glass">
+      <Glass className="crumbs">
         {crumbs.map((c, i) => (
           <button key={i} onClick={() => setCrumbs(crumbs.slice(0, i + 1))}
                   className={i === crumbs.length - 1 ? 'crumb active' : 'crumb'}>
@@ -290,7 +291,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
             ? `${data.nodes.length} 个主题 · 共 ${total} 条碎片`
             : `${data.nodes.length} / ${total} 条碎片`}
         </span>
-      </div>
+      </Glass>
 
       <ForceGraph3D
         ref={fgRef}
@@ -333,11 +334,11 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       />
 
       {hover && (
-        <div className="panel inspector glass">
+        <Glass className="panel inspector">
           <div className="ins-title">{hover.label}</div>
           <div className="ins-body">{hover.preview}</div>
           {hover.source_path && <div className="ins-src">{hover.source_path}</div>}
-        </div>
+        </Glass>
       )}
     </div>
   )

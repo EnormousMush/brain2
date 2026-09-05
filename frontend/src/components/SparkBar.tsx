@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from '../api'
 import type { Spark } from '../types'
 import { ArrowRight, Close, Search } from './Icons'
+import { Glass } from '../liquidGlass'
 
 /**
  * Capture lives in the top bar as the search pill (the one control every
@@ -98,7 +99,7 @@ export default function SparkBar({
   return (
     <>
       <div className="cap">
-        <div className={`search-pill glass${pending ? ' busy' : ''}`}>
+        <Glass className={`search-pill${pending ? ' busy' : ''}`}>
           <span className="s-ico"><Search /></span>
           <input
             ref={inputRef} value={text} placeholder="此刻在想什么"
@@ -108,9 +109,9 @@ export default function SparkBar({
             onKeyDown={e => { if (e.key === 'Enter' && !e.nativeEvent.isComposing) submit() }} />
           <kbd>⌘K</kbd>
           <button className="pill dark small" onClick={submit}>记下</button>
-        </div>
+        </Glass>
         {showDrop && (
-          <div className="panel drop glass">
+          <Glass className="panel drop">
             <div className="panel-head"><span className="label">最近</span><span className="label num">{pad(sparks.length)}</span></div>
             {sparks.slice(0, 6).map(s => (
               <button key={s.id} className="recent" onMouseDown={() => pick(s)}>
@@ -122,7 +123,7 @@ export default function SparkBar({
                 </span>
               </button>
             ))}
-          </div>
+          </Glass>
         )}
       </div>
 

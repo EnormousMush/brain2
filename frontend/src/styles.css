@@ -124,7 +124,7 @@ button { border: 0; background: none; color: inherit; padding: 0; }
 .pill.danger { border-color: var(--alert); color: var(--alert); background: transparent; }
 .pill.danger:hover { background: var(--alert); color: #fff; }
 .pill:disabled { opacity: .45; cursor: default; }
-.chip-btn { width: 40px; height: 40px; border-radius: var(--r-chip); border: 1px solid var(--line); background: var(--glass);
+.chip-btn { position: relative; width: 40px; height: 40px; border-radius: var(--r-chip); border: 1px solid var(--line); background: var(--glass);
   backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur); color: var(--fg-2); display: grid; place-items: center; cursor: pointer;
   box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo);
   transition: color var(--fast), border-color var(--fast), background var(--fast); }
@@ -160,6 +160,15 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .panel.glass::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
   background: radial-gradient(120% 80% at 12% 0%, var(--glass-hi) 0%, transparent 55%); opacity: .3; }
 .panel.glass > * { position: relative; }
+/* liquid glass (Chromium): the SVG backdrop filter carries refraction + frost + grain;
+   the rim light that depends on angle (sin(atan2 − .5) in the shader) is a conic ring */
+.glass.lg { background: var(--lg-fill); box-shadow: inset 0 0 14px var(--lg-inner), var(--glass-shadow); }
+.glass.lg::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; padding: 1px;
+  background: conic-gradient(from 210deg, var(--lg-rim) 0%, transparent 28%, var(--lg-shade) 52%, transparent 74%, var(--lg-rim) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; }
+.glass.lg > * { position: relative; z-index: 1; }
+:root { --lg-fill: rgba(255,255,255,.22); --lg-inner: rgba(255,255,255,.35); --lg-rim: rgba(255,255,255,.95); --lg-shade: rgba(0,0,0,.10); }
+:root[data-theme="dark"] { --lg-fill: rgba(255,255,255,.035); --lg-inner: rgba(255,255,255,.06); --lg-rim: rgba(255,255,255,.55); --lg-shade: rgba(0,0,0,.35); }
 @media (prefers-reduced-transparency: reduce) {
   .glass, .search-pill, .crumbs, .pill, .chip-btn, .drawer { backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
     background: var(--surface) !important; }
@@ -202,7 +211,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 
 /* ============================================================ capture pill */
 .cap { position: relative; }
-.search-pill { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 14px; border-radius: 999px;
+.search-pill { position: relative; display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 6px 0 14px; border-radius: 999px;
   background: var(--glass); border: 1px solid var(--line); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
   box-shadow: inset 0 1px 0 var(--glass-hi), inset 0 -1px 0 var(--glass-lo); transition: border-color var(--fast), box-shadow var(--fast); }
 .search-pill:focus-within { border-color: var(--accent-line); box-shadow: 0 0 0 4px var(--accent-soft); }

@@ -7,6 +7,7 @@ import GalaxyView from './components/GalaxyView'
 import { Clipboard, Debate as DebateIcon, Map as MapIcon, Moon, Sliders, Sparkle, Sun, Upload } from './components/Icons'
 import SettingsDrawer from './components/SettingsDrawer'
 import SparkBar from './components/SparkBar'
+import { Glass } from './liquidGlass'
 import type { Brain, Card, Spark } from './types'
 
 type View = 'home' | 'debate'
@@ -107,24 +108,24 @@ export default function App() {
               <Sparkle /> {running ? '开庭中' : '试一个例子'}
             </button>
           )}
-          <label className="chip-btn" title="导入笔记" aria-label="导入笔记">
+          <Glass as="label" className="chip-btn" title="导入笔记" aria-label="导入笔记">
             <Upload />
             <input type="file" multiple accept=".md,.txt,.zip" hidden onChange={e => importFiles(e.target.files)} />
-          </label>
-          <button className="chip-btn" title="粘贴笔记" aria-label="粘贴笔记" onClick={importPaste}><Clipboard /></button>
-          <button className="chip-btn" title="切换主题" aria-label="切换主题"
-                  onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
+          </Glass>
+          <Glass as="button" className="chip-btn" title="粘贴笔记" aria-label="粘贴笔记" onClick={importPaste}><Clipboard /></Glass>
+          <Glass as="button" className="chip-btn" title="切换主题" aria-label="切换主题"
+                 onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? <Sun /> : <Moon />}
-          </button>
+          </Glass>
         </div>
       </header>
 
-      <nav className="rail glass" aria-label="导航">
+      <Glass as="nav" className="rail" aria-label="导航">
         <button className={`rail-btn${view === 'home' ? ' active' : ''}`} title="星图" aria-label="星图" onClick={goHome}><MapIcon /></button>
         <button className={`rail-btn${view === 'debate' ? ' active' : ''}`} title="辩论" aria-label="辩论"
                 disabled={!debateId} onClick={() => setView('debate')}><DebateIcon /></button>
         <button className={`rail-btn${settings ? ' active' : ''}`} title="设置" aria-label="设置" onClick={() => setSettings(true)}><Sliders /></button>
-      </nav>
+      </Glass>
 
       <main className="stage">
         {view === 'home' && (

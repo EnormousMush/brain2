@@ -152,3 +152,6 @@ Keep the current paper / carbon / cobalt system for the light chrome (it already
 - Interactive glass gives physical feedback: scale .96 and a brightness lift on press.
 - `prefers-reduced-transparency: reduce` collapses every glass surface to solid.
 - The one primary action stays solid accent, not glass, so it remains the only "button" on screen.
+
+### Liquid glass shader port (frontend/src/liquidGlass.tsx)
+Ported from OverShifted/LiquidGlass (OpenGL): squircle SDF → refraction f(x)=1−b(ce)^(−dx−a) pulling samples toward the centre → blur → grain → angular rim light. On the web: per-element displacement map (feImage + feDisplacementMap, scale = max(w,h)), feGaussianBlur 2.4, feTurbulence grain at 5%, applied with `backdrop-filter: url(#id)`; the rim light is a CSS conic ring (`.glass.lg::after`). Use `<Glass as="button" className="chip-btn">` or `useLiquidGlass(ref)`. Chromium only; Safari/Firefox fall back to `.glass` blur. Parameters live in `P` at the top of the file (n=3, a=.7, b=2.3, c=5.2, d=6.9).
