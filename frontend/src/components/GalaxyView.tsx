@@ -4,14 +4,22 @@ import * as THREE from 'three'
 import { api } from '../api'
 import type { GraphLink, GraphNode, Level } from '../types'
 
-/* ------------------------------------------------------------------ inks
-   Two inks only. Paper is the substrate; cobalt is the chromatic plate and
-   every brain is a density of it. Carbon appears only in labels. */
-const INK = {
-  light: { paper: '#FAFAF7', label: '#242321', labelDim: '#96958E', shadow: 'rgba(250,250,247,0.95)',
-           plates: ['#2148B8', '#6F87D1', '#A8B6E3'], dim: '#E4E4DF', hair: '#C9CFE6', dust: '#A8B6E3' },
-  dark:  { paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
-           plates: ['#8AA4F0', '#5D74BF', '#3E4E80'], dim: '#1E2129', hair: '#243040', dust: '#3E4E80' },
+/* ------------------------------------------------------------------ hues
+   Each brain owns one hue. Dark = saturated light on a near-black canvas
+   (additive glow); light = the same hues desaturated, normal blending. */
+const THEME = {
+  dark: {
+    paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
+    hues: ['#A855F7', '#F0468C', '#38BDF8', '#FBBF24', '#34D399'],
+    core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', axis: '#6B7683', additive: true,
+    cloudOpacity: 0.42, cloudSize: 5.2,
+  },
+  light: {
+    paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
+    hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A'],
+    core: '#2148B8', dim: '#DFE2E8', wire: '#111418', axis: '#8A939E', additive: false,
+    cloudOpacity: 0.32, cloudSize: 4.2,
+  },
 }
 
 /* ------------------------------------------------------------ textures */
@@ -25,97 +33,119 @@ function canvasTex(key: string, size: number, draw: (ctx: CanvasRenderingContext
   TEX.set(key, t)
   return t
 }
-const discTex = (color: string) => canvasTex(`disc:${color}`, 64, (ctx, s) => {
-  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 2, 0, Math.PI * 2); ctx.fill()
-})
-const ringTex = (color: string) => canvasTex(`ring:${color}`, 128, (ctx, s) => {
-  ctx.strokeStyle = color; ctx.lineWidth = 5
-  ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 6, 0, Math.PI * 2); ctx.stroke()
-  ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s * 0.16, 0, Math.PI * 2); ctx.fill()
-})
-/** Ink bleed: a soft halo behind an activated node, like wet ink on paper. */
-const haloTex = (color: string) => canvasTex(`halo:${color}`, 128, (ctx, s) => {
+/** soft white dot: the particle of every cloud (tinted by material colour) */
+const softDot = () => canvasTex('soft', 64, (ctx, s) => {
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
-  g.addColorStop(0, color); g.addColorStop(0.35, color); g.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.globalAlpha = 0.28; ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,.8)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+})
+/** glowing core */
+const coreTex = (color: string) => canvasTex(`core:${color}`, 128, (ctx, s) => {
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.18, color); g.addColorStop(0.45, color + '55'); g.addColorStop(1, color + '00')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
+})
+/** glass disc: translucent fill, bright rim, a highlight arc top-left */
+const glassTex = (rim: string) => canvasTex(`glass:${rim}`, 256, (ctx, s) => {
+  const c = s / 2, r = s / 2 - 6
+  const fill = ctx.createRadialGradient(c - r * .35, c - r * .35, r * .1, c, c, r)
+  fill.addColorStop(0, 'rgba(255,255,255,.28)'); fill.addColorStop(.6, 'rgba(255,255,255,.08)'); fill.addColorStop(1, 'rgba(255,255,255,.14)')
+  ctx.fillStyle = fill; ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.fill()
+  ctx.lineWidth = 3; ctx.strokeStyle = rim; ctx.globalAlpha = .9
+  ctx.beginPath(); ctx.arc(c, c, r, 0, Math.PI * 2); ctx.stroke()
+  ctx.globalAlpha = .7; ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4; ctx.lineCap = 'round'
+  ctx.beginPath(); ctx.arc(c, c, r - 9, Math.PI * 1.15, Math.PI * 1.55); ctx.stroke()
 })
 
 function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false): THREE.Sprite {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity,
-                                                        blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending }))
+  const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity,
+                                       blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending })
+  const s = new THREE.Sprite(m)
   s.scale.set(size, size, 1)
   return s
 }
 
-/** A crisp always-on text label as a camera-facing sprite. */
-function makeLabel(text: string, color: string, dim: boolean, shadow: string): THREE.Sprite {
-  const fs = 48, pad = 10
+function makeLabel(text: string, color: string, dim: boolean, shadow: string, fs = 48, weight = 700): THREE.Sprite {
+  const pad = 10
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const measure = document.createElement('canvas').getContext('2d')!
-  const font = `700 ${fs}px "Helvetica Neue", "PingFang SC", -apple-system, sans-serif`
+  const font = `${weight} ${fs}px "Helvetica Neue", "PingFang SC", -apple-system, sans-serif`
   measure.font = font
   const w = Math.ceil(measure.measureText(text).width) + pad * 2
   const h = fs + pad * 2
   const canvas = document.createElement('canvas')
   canvas.width = w * dpr; canvas.height = h * dpr
   const ctx = canvas.getContext('2d')!
-  ctx.scale(dpr, dpr)
-  ctx.font = font
-  ctx.textBaseline = 'middle'
+  ctx.scale(dpr, dpr); ctx.font = font; ctx.textBaseline = 'middle'
   ctx.shadowColor = shadow; ctx.shadowBlur = 7
-  ctx.fillStyle = color
-  ctx.globalAlpha = dim ? 0.3 : 1
+  ctx.fillStyle = color; ctx.globalAlpha = dim ? 0.3 : 1
   ctx.fillText(text, pad, h / 2)
-  const tex = new THREE.CanvasTexture(canvas)
-  tex.minFilter = THREE.LinearFilter
+  const tex = new THREE.CanvasTexture(canvas); tex.minFilter = THREE.LinearFilter
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }))
   s.scale.set(w * 0.34, h * 0.34, 1)
   return s
 }
 
-/* ------------------------------------------------------------ chart layer
-   Everything that is not a node: orbit rings around each brain, a field of
-   paper dust for depth, and the constellation drawn between hits. Rebuilt
-   from scratch whenever the data or the spotlight changes. */
-function circle(r: number, color: string, opacity: number, segments = 96): THREE.LineLoop {
-  const pts: THREE.Vector3[] = []
-  for (let i = 0; i < segments; i++) {
-    const a = (i / segments) * Math.PI * 2
-    pts.push(new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, 0))
-  }
-  const g = new THREE.BufferGeometry().setFromPoints(pts)
-  return new THREE.LineLoop(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false }))
+/* --------------------------------------------------------------- clouds */
+function gauss() { // Box–Muller
+  const u = 1 - Math.random(), v = Math.random()
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
-
-function armillary(r: number, color: string, opacity: number): THREE.Group {
-  const g = new THREE.Group()
-  const a = circle(r, color, opacity)
-  const b = circle(r, color, opacity); b.rotation.x = Math.PI / 2
-  const c = circle(r * 0.62, color, opacity * 0.7); c.rotation.y = Math.PI / 2
-  g.add(a, b, c)
-  return g
-}
-
-function dust(count: number, radius: number, color: string): THREE.Points {
-  const pos = new Float32Array(count * 3)
-  for (let i = 0; i < count; i++) {
-    // uniform in a sphere, biased outward so the middle stays quiet
-    const u = Math.random(), v = Math.random()
-    const th = 2 * Math.PI * u, ph = Math.acos(2 * v - 1)
-    const r = radius * Math.cbrt(0.35 + 0.65 * Math.random())
-    pos[i * 3] = r * Math.sin(ph) * Math.cos(th)
-    pos[i * 3 + 1] = r * Math.sin(ph) * Math.sin(th)
-    pos[i * 3 + 2] = r * Math.cos(ph)
+/** A nebula seeded by real fragment coordinates: every chunk sprinkles a
+ *  handful of particles around itself, so the cloud's shape is the data. */
+function cloud(seeds: GraphNode[], perSeed: number, sigma: number, color: string, size: number,
+               opacity: number, additive: boolean): THREE.Points {
+  const n = seeds.length * perSeed
+  const pos = new Float32Array(n * 3)
+  let i = 0
+  for (const s of seeds) {
+    for (let k = 0; k < perSeed; k++) {
+      pos[i++] = s.x + gauss() * sigma
+      pos[i++] = s.y + gauss() * sigma
+      pos[i++] = s.z + gauss() * sigma
+    }
   }
   const g = new THREE.BufferGeometry()
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  return new THREE.Points(g, new THREE.PointsMaterial({ color, size: 1.6, sizeAttenuation: true,
-                                                        transparent: true, opacity: 0.55, depthWrite: false }))
+  const m = new THREE.PointsMaterial({ color, size, map: softDot(), transparent: true, opacity, depthWrite: false,
+                                       sizeAttenuation: true, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending })
+  return new THREE.Points(g, m)
+}
+
+function segments(pairs: [THREE.Vector3, THREE.Vector3][], color: string, opacity: number, additive: boolean): THREE.LineSegments {
+  const pos = new Float32Array(pairs.length * 6)
+  pairs.forEach(([a, b], i) => { pos.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6) })
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color, transparent: true, opacity, depthWrite: false,
+    blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending }))
+}
+
+/** A corner axis tripod with labels, like a plotted chart. */
+function axes(span: number, color: string, labelColor: string, shadow: string): THREE.Group {
+  const g = new THREE.Group()
+  const o = new THREE.Vector3(-span, -span, -span)
+  const L = span * 2
+  const dirs: [THREE.Vector3, string][] = [
+    [new THREE.Vector3(L, 0, 0), 'X · AXIS'], [new THREE.Vector3(0, L, 0), 'Z · AXIS'], [new THREE.Vector3(0, 0, L), 'Y · AXIS'],
+  ]
+  for (const [d, name] of dirs) {
+    const end = o.clone().add(d)
+    g.add(segments([[o, end]], color, 0.55, false))
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(4, 12, 10), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: .8 }))
+    cone.position.copy(end)
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.clone().normalize())
+    g.add(cone)
+    const lbl = makeLabel(name, labelColor, false, shadow, 30, 500)
+    lbl.position.copy(o.clone().add(d.clone().multiplyScalar(0.5))).add(new THREE.Vector3(0, -18, 0))
+    g.add(lbl)
+  }
+  return g
 }
 
 /* ------------------------------------------------------------------ view */
 interface Props {
-  activeIds: string[]                 // chunk ids to spotlight
+  activeIds: string[]
   onPickChunk?: (id: string) => void
   refreshKey?: number
   theme?: 'light' | 'dark'
@@ -124,7 +154,7 @@ interface Crumb { level: Level; id?: string; label: string }
 
 export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
-  const ink = INK[dark ? 'dark' : 'light']
+  const T = THEME[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<THREE.Group | null>(null)
@@ -135,18 +165,16 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const [total, setTotal] = useState(0)
   const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
   const [span, setSpan] = useState(260)
-  // the hit fragments themselves, with real coordinates, so the top level can
-  // show them as lit stars inside their brain's orbit
-  const [hitNodes, setHitNodes] = useState<GraphNode[]>([])
+  const [allChunks, setAllChunks] = useState<GraphNode[]>([])   // seeds for the nebulae
 
   useEffect(() => {
     api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
+    api.graph('chunk').then(r => setAllChunks(r.nodes)).catch(() => {})
   }, [refreshKey])
 
   const here = crumbs[crumbs.length - 1]
-  const plateOf = (n: any) => ink.plates[(brainIndex.get(n.brain_id) ?? 0) % ink.plates.length]
+  const hueOf = (brainId: string) => T.hues[(brainIndex.get(brainId) ?? 0) % T.hues.length]
 
-  // react-force-graph-3d does not size itself to its parent; track the container.
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
@@ -172,7 +200,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         const s = Math.max(220, ...r.nodes.flatMap(n => [Math.abs(n.x || 0), Math.abs(n.y || 0), Math.abs(n.z || 0)]))
         setSpan(s)
         if (r.nodes.length) setTimeout(() => {
-          fgRef.current?.cameraPosition({ x: 0, y: 0, z: s * 2.7 }, { x: 0, y: 0, z: 0 }, 600)
+          fgRef.current?.cameraPosition({ x: s * 0.9, y: s * 0.6, z: s * 2.4 }, { x: 0, y: 0, z: 0 }, 600)
         }, 120)
       })
       .catch(() => setData({ nodes: [], links: [] }))
@@ -180,13 +208,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   }, [crumbs, refreshKey])
 
   const active = useMemo(() => new Set(activeIds), [activeIds])
-  useEffect(() => {
-    if (!activeIds.length) { setHitNodes([]); return }
-    let alive = true
-    api.graph('chunk').then(r => { if (alive) setHitNodes(r.nodes.filter(n => active.has(n.id))) })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [activeIds, refreshKey])
+  const hitNodes = useMemo(() => allChunks.filter(n => active.has(n.id)), [allChunks, active])
   const hitBrains = useMemo(() => new Set(hitNodes.map(n => n.brain_id)), [hitNodes])
   const hits = useMemo(() =>
     here.level === 'brain' ? hitNodes : data.nodes.filter(n => active.has(n.id)),
@@ -194,98 +216,100 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const dimming = active.size > 0 && hits.length > 0
   const isLit = (n: any) => !dimming || active.has(n.id) || (n.level === 'brain' && hitBrains.has(n.id))
 
-  // depth: fog to the paper colour so far stars fade like ink thinning out
+  // depth: fog to the canvas colour
   useEffect(() => {
     const scene: THREE.Scene | undefined = fgRef.current?.scene?.()
     if (!scene) return
-    scene.fog = new THREE.Fog(ink.paper, span * 2.0, span * 4.6)
-  }, [span, ink.paper, data.nodes])
+    scene.fog = new THREE.Fog(T.paper, span * 2.2, span * 5.2)
+  }, [span, T.paper, data.nodes])
 
-  // the chart layer: rings, dust, constellation
+  // the chart layer: nebulae, wires, axes, constellation
   useEffect(() => {
     const scene: THREE.Scene | undefined = fgRef.current?.scene?.()
     if (!scene) return
     if (chartRef.current) { scene.remove(chartRef.current); chartRef.current = null }
     const g = new THREE.Group()
 
-    // paper dust for volume; sparse so the page still reads as paper
-    g.add(dust(here.level === 'chunk' ? 260 : 420, span * 1.9, ink.dust))
+    // which fragments seed the clouds at this level
+    const visibleBrain = crumbs.find(c => c.level === 'cluster')?.id
+    const visibleCluster = crumbs.find(c => c.level === 'chunk')?.id
+    const seeds = allChunks.filter(c =>
+      (!visibleBrain || c.brain_id === visibleBrain) && (!visibleCluster || (c as any).cluster_id === visibleCluster))
+    const byBrain = new Map<string, GraphNode[]>()
+    for (const c of seeds) byBrain.set(c.brain_id, [...(byBrain.get(c.brain_id) || []), c])
 
-    // one orbit system per brain at the top level; one enclosing ring below it
-    if (here.level === 'brain') {
-      for (const n of data.nodes) {
-        const lit = isLit(n)
-        const a = armillary(Math.max(36, n.size * 9), lit ? plateOf(n) : ink.dim, lit ? 0.35 : 0.15)
-        a.position.set(n.x, n.y, n.z)
-        a.rotation.set(0.4 + (brainIndex.get(n.brain_id) ?? 0) * 0.7, 0.3, 0)
-        g.add(a)
-      }
-    } else if (data.nodes.length) {
-      const c = data.nodes.reduce((acc, n) => ({ x: acc.x + n.x, y: acc.y + n.y, z: acc.z + n.z }), { x: 0, y: 0, z: 0 })
-      const cx = c.x / data.nodes.length, cy = c.y / data.nodes.length, cz = c.z / data.nodes.length
-      const r = Math.max(60, ...data.nodes.map(n => Math.hypot(n.x - cx, n.y - cy, n.z - cz))) + 18
-      const a = armillary(r, ink.hair, 0.5)
-      a.position.set(cx, cy, cz)
-      g.add(a)
+    // nebulae: ~900 particles per brain, spread by how many fragments it has
+    for (const [bid, list] of byBrain) {
+      const lit = !dimming || hitBrains.has(bid)
+      const perSeed = Math.min(600, Math.max(60, Math.round(2400 / list.length)))
+      const sigma = here.level === 'brain' ? 34 : 16
+      const hue = lit ? hueOf(bid) : T.dim
+      // outer haze, mid body, dense core: three shells of the same hue
+      g.add(cloud(list, perSeed, sigma * 1.6, hue, T.cloudSize * 1.3, (lit ? T.cloudOpacity : 0.08) * 0.45, T.additive))
+      g.add(cloud(list, perSeed, sigma, hue, T.cloudSize, lit ? T.cloudOpacity : 0.1, T.additive))
+      g.add(cloud(list, Math.ceil(perSeed / 2), sigma * 0.4, hue, T.cloudSize * 0.7, lit ? T.cloudOpacity * 1.3 : 0.1, T.additive))
     }
 
-    // at the top level the hit fragments appear as stars inside their orbits
+    // wires: hub ↔ hub, and each hub to a few stray particles of other clouds
+    const hubs = data.nodes.filter(n => n.level !== 'chunk')
+    const pairs: [THREE.Vector3, THREE.Vector3][] = []
+    for (let i = 0; i < hubs.length; i++) for (let j = i + 1; j < hubs.length; j++)
+      pairs.push([new THREE.Vector3(hubs[i].x, hubs[i].y, hubs[i].z), new THREE.Vector3(hubs[j].x, hubs[j].y, hubs[j].z)])
+    for (const h of hubs) {
+      const others = seeds.filter(c => c.brain_id !== h.brain_id)
+      for (let k = 0; k < Math.min(10, others.length); k++) {
+        const c = others[Math.floor(Math.random() * others.length)]
+        pairs.push([new THREE.Vector3(h.x, h.y, h.z), new THREE.Vector3(c.x + gauss() * 10, c.y + gauss() * 10, c.z + gauss() * 10)])
+      }
+    }
+    if (pairs.length) g.add(segments(pairs, T.wire, dark ? 0.16 : 0.12, false))
+
+    // axes in the corner
+    g.add(axes(span * 1.15, T.axis, T.axis, T.shadow))
+
+    // hit fragments as bright stars at the top level, plus the constellation
     if (here.level === 'brain') {
       for (const n of hits) {
-        const st = sprite(discTex(plateOf(n)), 9)
+        const st = sprite(coreTex(hueOf(n.brain_id)), 26, 1, T.additive)
         st.position.set(n.x, n.y, n.z)
         g.add(st)
       }
     }
-
-    // constellation: the hits joined into one figure, cobalt hairline, dashed
     if (hits.length >= 2) {
       const c = hits.reduce((acc, n) => ({ x: acc.x + n.x, y: acc.y + n.y, z: acc.z + n.z }), { x: 0, y: 0, z: 0 })
       const centre = new THREE.Vector3(c.x / hits.length, c.y / hits.length, c.z / hits.length)
       const ordered = [...hits].sort((p, q) =>
         Math.atan2(p.y - centre.y, p.x - centre.x) - Math.atan2(q.y - centre.y, q.x - centre.x))
-      const pts = ordered.map(n => new THREE.Vector3(n.x, n.y, n.z))
-      pts.push(pts[0].clone())
-      const geo = new THREE.BufferGeometry().setFromPoints(pts)
-      const line = new THREE.Line(geo, new THREE.LineDashedMaterial({ color: ink.plates[0], dashSize: 6, gapSize: 4,
-                                                                      transparent: true, opacity: 0.9, depthWrite: false,
-                                                                      blending: dark ? THREE.AdditiveBlending : THREE.NormalBlending }))
+      const pts = ordered.map(n => new THREE.Vector3(n.x, n.y, n.z)); pts.push(pts[0].clone())
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineDashedMaterial({ color: T.core, dashSize: 6, gapSize: 4, transparent: true, opacity: 0.95, depthWrite: false,
+                                       blending: T.additive ? THREE.AdditiveBlending : THREE.NormalBlending }))
       line.computeLineDistances()
       g.add(line)
-      // ink bleed behind each hit
-      for (const n of hits) {
-        const h = sprite(haloTex(plateOf(n)), Math.sqrt(n.size * 3) * 9 * (dark ? 5 : 4.2), 1, dark)
-        h.position.set(n.x, n.y, n.z)
-        g.add(h)
-      }
     }
 
     scene.add(g)
     chartRef.current = g
     return () => { scene.remove(g) }
-  }, [data, hits, dimming, here.level, span, ink, brainIndex, hitBrains, dark])
+  }, [data, hits, dimming, here.level, span, T, brainIndex, hitBrains, allChunks, crumbs])
 
-  // gentle idle rotation; pause it while hits are spotlighted so the fly-to isn't fought
   useEffect(() => {
     const c = fgRef.current?.controls?.()
     if (!c) return
     const still = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     c.autoRotate = !dimming && !still
-    c.autoRotateSpeed = 0.45
+    c.autoRotateSpeed = 0.4
     c.enableDamping = true
     c.dampingFactor = 0.08
   }, [dimming, data.nodes])
 
-  // fly the camera to the centroid of the active nodes when a spark lands
   useEffect(() => {
-    if (!dimming || !fgRef.current) return
-    if (!hits.length) return
+    if (!dimming || !fgRef.current || !hits.length) return
     const c = hits.reduce((a, n) => ({ x: a.x + n.x, y: a.y + n.y, z: a.z + n.z }), { x: 0, y: 0, z: 0 })
     const n = hits.length
-    const spread = Math.max(160, ...hits.map(h => Math.hypot(h.x - c.x / n, h.y - c.y / n, h.z - c.z / n))) * 2.6
-    fgRef.current.cameraPosition(
-      { x: c.x / n, y: c.y / n, z: c.z / n + spread },
-      { x: c.x / n, y: c.y / n, z: c.z / n }, 1100)
+    const spread = Math.max(180, ...hits.map(h => Math.hypot(h.x - c.x / n, h.y - c.y / n, h.z - c.z / n))) * 2.6
+    fgRef.current.cameraPosition({ x: c.x / n + spread * 0.25, y: c.y / n + spread * 0.15, z: c.z / n + spread },
+                                 { x: c.x / n, y: c.y / n, z: c.z / n }, 1100)
   }, [hits, dimming])
 
   const drill = (n: GraphNode) => {
@@ -317,7 +341,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         width={size.w}
         height={size.h}
         graphData={data as any}
-        backgroundColor={ink.paper}
+        backgroundColor={T.paper}
         showNavInfo={false}
         nodeId="id"
         nodeLabel={(n: any) => `<div class="tip"><b>${n.label}</b><br/>${n.preview ?? ''}</div>`}
@@ -325,33 +349,36 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
         nodeVal={(n: any) => (active.has(n.id) ? n.size * 3 : n.size)}
         nodeThreeObject={(n: any) => {
           const lit = isLit(n)
+          const hue = lit ? hueOf(n.brain_id) : T.dim
           const r = Math.sqrt(active.has(n.id) ? n.size * 3 : n.size) * 9
-          const color = lit ? plateOf(n) : ink.dim
           const g = new THREE.Group()
-          // brain = ring with a core, cluster = disc, chunk = small star
-          if (n.level === 'brain') g.add(sprite(ringTex(color), r * 2))
-          else if (n.level === 'cluster') g.add(sprite(discTex(color), r * 2))
-          else g.add(sprite(discTex(color), Math.max(r * 2, 7)))
+          if (n.level === 'brain') {
+            // glass disc + glowing core: one circle per brain
+            g.add(sprite(glassTex(hue), r * 3.2, lit ? 1 : 0.35))
+            g.add(sprite(coreTex(T.core), r * 2.2, lit ? 1 : 0.2, T.additive))
+          } else if (n.level === 'cluster') {
+            g.add(sprite(glassTex(hue), r * 2, lit ? 0.9 : 0.3))
+            g.add(sprite(coreTex(hue), r * 1.2, lit ? 0.9 : 0.2, T.additive))
+          } else {
+            g.add(sprite(coreTex(hue), Math.max(r * 2.2, 10), lit ? 1 : 0.25, T.additive))
+          }
           if (n.level !== 'chunk') {
-            const s = makeLabel(n.label, lit ? ink.label : ink.labelDim, !lit, ink.shadow)
-            s.position.set(0, r + 14, 0)
+            const s = makeLabel(n.label, lit ? T.label : T.labelDim, !lit, T.shadow)
+            s.position.set(0, r * 1.3 + 16, 0)
             g.add(s)
           }
           return g
         }}
-        linkColor={(l: any) => (l.kind === 'hit' ? ink.plates[0] : ink.hair)}
-        linkWidth={(l: any) => (l.kind === 'hit' ? 1.4 : 0.4)}
-        linkOpacity={0.5}
-        linkDirectionalParticles={(l: any) => (l.kind === 'hit' ? 4 : 0)}
-        linkDirectionalParticleWidth={2.4}
-        linkDirectionalParticleSpeed={0.012}
+        linkColor={() => T.wire}
+        linkOpacity={dark ? 0.12 : 0.1}
+        linkWidth={0.3}
         enableNodeDrag={false}
         onNodeClick={drill as any}
         onNodeHover={(n: any) => setHover(n || null)}
       />
 
       {hover && (
-        <div className="inspector">
+        <div className="panel inspector">
           <div className="ins-title">{hover.label}</div>
           <div className="ins-body">{hover.preview}</div>
           {hover.source_path && <div className="ins-src">{hover.source_path}</div>}
