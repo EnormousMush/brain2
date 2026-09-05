@@ -96,6 +96,15 @@ class MockProvider(Provider):
         elif "SKELETON" in system:
             payload = {"object": a, "constraint": "资源有限", "mechanism": "重新分配",
                        "motivation": "省时间", "keywords": [a, b]}
+        elif "PROPOSAL" in system:
+            # 夜间发现的离线版本。要的是"每一对看起来都不一样"，否则 WEAVE_OFFLINE=1
+            # 的演示里 n 条提案会长得一模一样，机制就看不出来了。
+            shape = ["把「{a}」的做法搬到「{b}」的约束上是值得的",
+                     "「{a}」和「{b}」其实在解同一个分配问题",
+                     "「{b}」缺的那一步，「{a}」里已经有现成的了",
+                     "如果把「{a}」当成一种约束设计，「{b}」应该照抄"][seed % 4]
+            payload = {"motion": shape.format(a=a, b=b),
+                       "why": f"两边都在处理「{a[:8]}」这类结构，但从没被放在一起看过"}
         elif "CARD" in system:
             pair = tags[:1] + [t for t in tags if t[:2] != tags[0][:2]][:1] if tags else []
             payload = {"cards": [{

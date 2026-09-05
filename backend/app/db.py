@@ -85,6 +85,32 @@ def init_db() -> None:
     for name, specs in INDEXES.items():
         for keys in specs:
             col(name).create_index(keys)
+    migrate()
+
+
+def migrate() -> None:
+    """Idempotent, runs on every boot. `sparks` became `ideas` when 灵光 capture
+    was split from debate creation — an old database still has the old shape."""
+    if "sparks" not in db().list_collection_names() or count("ideas"):
+        return
+    moved = 0
+    for d in find("sparks"):
+        col("ideas").insert_one({
+            "_id": d["id"], "text": d.get("text") or "", "origin": "user",
+            "kind": "eureka", "status": "kept", "brain_id": None, "image": None,
+            "enrichment": "ready" if d.get("status") == "enriched" else "pending",
+            "skeleton": d.get("skeleton"), "embedding": d.get("embedding"),
+            "hits": d.get("hits") or [], "x": None, "y": None, "z": None,
+            "debate_id": None, "created_at": d.get("created_at") or now(),
+            "decided_at": None,
+        })
+        moved += 1
+    for d in find("debates", {"spark_id": {"$ne": None}}, fields=["spark_id"]):
+        col("debates").update_one({"_id": d["id"]},
+                                  {"$set": {"idea_id": d["spark_id"]},
+                                   "$unset": {"spark_id": ""}})
+    col("sparks").drop()
+    log.info("migrated %d sparks -> ideas", moved)
 
 
 # -------------------------------------------------------- dict <-> document
@@ -184,9 +210,20 @@ def delete_debate(debate_id: str) -> None:
     delete("debates", {"_id": debate_id})
 
 
-def delete_spark(spark_id: str) -> None:
-    update("debates", {"spark_id": spark_id}, {"spark_id": None})
-    delete("sparks", {"_id": spark_id})
+def delete_idea(idea_id: str) -> None:
+    update("debates", {"idea_id": idea_id}, {"idea_id": None})
+    delete("ideas", {"_id": idea_id})
+
+
+# ---------------------------------------------------------------- settings
+# The `settings` collection is a plain key -> {"value": {...}} store. It survives
+# 「删除我的副脑」 on purpose: your API keys and your 夜间 preferences are not data.
+def read_setting(key: str) -> dict | None:
+    return (get("settings", key) or {}).get("value")
+
+
+def write_setting(key: str, value: dict) -> None:
+    upsert_id("settings", key, {"value": value})
 
 
 # ------------------------------------------------------------- vector blobs

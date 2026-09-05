@@ -6,12 +6,16 @@ import type { GraphLink, GraphNode, Level } from '../types'
 
 /* ------------------------------------------------------------------ inks
    Two inks only. Paper is the substrate; cobalt is the chromatic plate and
-   every brain is a density of it. Carbon appears only in labels. */
+   every brain is a density of it. Carbon appears only in labels.
+   `idea` is the one exception — a warm second plate, because a thought you wrote
+   yourself must never be mistaken for a fragment an agent can quote. */
 const INK = {
   light: { paper: '#FAFAF7', label: '#242321', labelDim: '#96958E', shadow: 'rgba(250,250,247,0.95)',
-           plates: ['#2148B8', '#6F87D1', '#A8B6E3'], dim: '#E4E4DF', hair: '#C9CFE6', dust: '#A8B6E3' },
+           plates: ['#2148B8', '#6F87D1', '#A8B6E3'], dim: '#E4E4DF', hair: '#C9CFE6', dust: '#A8B6E3',
+           idea: '#8A6A22' },
   dark:  { paper: '#0A1017', label: '#F2F3F5', labelDim: '#5E6B7A', shadow: 'rgba(10,16,23,0.95)',
-           plates: ['#8AA4F0', '#5D74BF', '#3E4E80'], dim: '#1E2129', hair: '#243040', dust: '#3E4E80' },
+           plates: ['#8AA4F0', '#5D74BF', '#3E4E80'], dim: '#1E2129', hair: '#243040', dust: '#3E4E80',
+           idea: '#D6B36A' },
 }
 
 /* ------------------------------------------------------------ textures */
@@ -33,6 +37,19 @@ const ringTex = (color: string) => canvasTex(`ring:${color}`, 128, (ctx, s) => {
   ctx.beginPath(); ctx.arc(s / 2, s / 2, s / 2 - 6, 0, Math.PI * 2); ctx.stroke()
   ctx.fillStyle = color; ctx.beginPath(); ctx.arc(s / 2, s / 2, s * 0.16, 0, Math.PI * 2); ctx.fill()
 })
+/** A想法: a four-pointed star, hollow-cored. Never a filled disc — that glyph is
+ *  reserved for 碎片, the only thing an agent is allowed to cite. */
+const starTex = (color: string) => canvasTex(`star:${color}`, 128, (ctx, s) => {
+  const c = s / 2, R = s / 2 - 8, r = R * 0.3
+  ctx.beginPath()
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2
+    const rad = i % 2 === 0 ? R : r
+    ctx[i ? 'lineTo' : 'moveTo'](c + Math.cos(a) * rad, c + Math.sin(a) * rad)
+  }
+  ctx.closePath()
+  ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.stroke()
+})
 /** Ink bleed: a soft halo behind an activated node, like wet ink on paper. */
 const haloTex = (color: string) => canvasTex(`halo:${color}`, 128, (ctx, s) => {
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
@@ -48,7 +65,7 @@ function sprite(tex: THREE.Texture, size: number, opacity = 1, additive = false)
 }
 
 /** A crisp always-on text label as a camera-facing sprite. */
-function makeLabel(text: string, color: string, dim: boolean, shadow: string): THREE.Sprite {
+function makeLabel(text: string, color: string, dim: boolean, shadow: string, k = 0.34): THREE.Sprite {
   const fs = 48, pad = 10
   const dpr = Math.min(window.devicePixelRatio || 1, 2)
   const measure = document.createElement('canvas').getContext('2d')!
@@ -69,7 +86,7 @@ function makeLabel(text: string, color: string, dim: boolean, shadow: string): T
   const tex = new THREE.CanvasTexture(canvas)
   tex.minFilter = THREE.LinearFilter
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }))
-  s.scale.set(w * 0.34, h * 0.34, 1)
+  s.scale.set(w * k, h * k, 1)
   return s
 }
 
@@ -117,12 +134,13 @@ function dust(count: number, radius: number, color: string): THREE.Points {
 interface Props {
   activeIds: string[]                 // chunk ids to spotlight
   onPickChunk?: (id: string) => void
+  onPickIdea?: (id: string) => void
   refreshKey?: number
   theme?: 'light' | 'dark'
 }
 interface Crumb { level: Level; id?: string; label: string }
 
-export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, theme = 'dark' }: Props) {
+export default function GalaxyView({ activeIds, onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
   const ink = INK[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
@@ -130,20 +148,26 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   const chartRef = useRef<THREE.Group | null>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   const [crumbs, setCrumbs] = useState<Crumb[]>([{ level: 'brain', label: '全部副脑' }])
+  // 顶层的两档：只看副脑（默认）/ 展开全部碎片。往下钻取时这个开关不参与。
+  const [expand, setExpand] = useState(false)
   const [data, setData] = useState<{ nodes: GraphNode[]; links: GraphLink[] }>({ nodes: [], links: [] })
   const [hover, setHover] = useState<GraphNode | null>(null)
   const [total, setTotal] = useState(0)
-  const [brainIndex, setBrainIndex] = useState<Map<string, number>>(new Map())
+  const [brains, setBrains] = useState<{ id: string; name: string }[]>([])
   const [span, setSpan] = useState(260)
   // the hit fragments themselves, with real coordinates, so the top level can
   // show them as lit stars inside their brain's orbit
   const [hitNodes, setHitNodes] = useState<GraphNode[]>([])
 
   useEffect(() => {
-    api.brains().then(bs => setBrainIndex(new Map(bs.map((b, i) => [b.id, i])))).catch(() => {})
+    api.brains().then(bs => setBrains(bs.map(b => ({ id: b.id, name: b.name })))).catch(() => {})
   }, [refreshKey])
+  const brainIndex = useMemo(() => new Map(brains.map((b, i) => [b.id, i])), [brains])
 
   const here = crumbs[crumbs.length - 1]
+  const top = crumbs.length === 1
+  const level: Level = top && expand ? 'chunk' : here.level
+  const allFragments = top && expand
   const plateOf = (n: any) => ink.plates[(brainIndex.get(n.brain_id) ?? 0) % ink.plates.length]
 
   // react-force-graph-3d does not size itself to its parent; track the container.
@@ -164,20 +188,23 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     let alive = true
     const brainId = crumbs.find(c => c.level === 'cluster')?.id
     const clusterId = crumbs.find(c => c.level === 'chunk')?.id
-    api.graph(here.level, here.level === 'brain' ? undefined : brainId, clusterId)
+    api.graph(level, level === 'brain' ? undefined : brainId, clusterId)
       .then(r => {
         if (!alive) return
         setTotal(r.total_chunks)
         setData({ nodes: r.nodes.map(n => ({ ...n, fx: n.x, fy: n.y, fz: n.z })), links: r.links })
         const s = Math.max(220, ...r.nodes.flatMap(n => [Math.abs(n.x || 0), Math.abs(n.y || 0), Math.abs(n.z || 0)]))
         setSpan(s)
+        // Pull back far enough that the outermost galaxy clears the bottom
+        // metadata band — a node on the Fibonacci sphere projects wider than
+        // its raw coordinate once perspective is applied.
         if (r.nodes.length) setTimeout(() => {
-          fgRef.current?.cameraPosition({ x: 0, y: 0, z: s * 2.7 }, { x: 0, y: 0, z: 0 }, 600)
+          fgRef.current?.cameraPosition({ x: 0, y: 0, z: s * 3.4 }, { x: 0, y: 0, z: 0 }, 600)
         }, 120)
       })
       .catch(() => setData({ nodes: [], links: [] }))
     return () => { alive = false }
-  }, [crumbs, refreshKey])
+  }, [crumbs, expand, refreshKey])
 
   const active = useMemo(() => new Set(activeIds), [activeIds])
   useEffect(() => {
@@ -189,8 +216,8 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
   }, [activeIds, refreshKey])
   const hitBrains = useMemo(() => new Set(hitNodes.map(n => n.brain_id)), [hitNodes])
   const hits = useMemo(() =>
-    here.level === 'brain' ? hitNodes : data.nodes.filter(n => active.has(n.id)),
-    [here.level, hitNodes, data.nodes, active])
+    level === 'brain' ? hitNodes : data.nodes.filter(n => active.has(n.id)),
+    [level, hitNodes, data.nodes, active])
   const dimming = active.size > 0 && hits.length > 0
   const isLit = (n: any) => !dimming || active.has(n.id) || (n.level === 'brain' && hitBrains.has(n.id))
 
@@ -209,16 +236,40 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     const g = new THREE.Group()
 
     // paper dust for volume; sparse so the page still reads as paper
-    g.add(dust(here.level === 'chunk' ? 260 : 420, span * 1.9, ink.dust))
+    g.add(dust(level === 'chunk' ? 260 : 420, span * 1.9, ink.dust))
 
     // one orbit system per brain at the top level; one enclosing ring below it
-    if (here.level === 'brain') {
+    if (level === 'brain') {
       for (const n of data.nodes) {
         const lit = isLit(n)
         const a = armillary(Math.max(36, n.size * 9), lit ? plateOf(n) : ink.dim, lit ? 0.35 : 0.15)
         a.position.set(n.x, n.y, n.z)
         a.rotation.set(0.4 + (brainIndex.get(n.brain_id) ?? 0) * 0.7, 0.3, 0)
         g.add(a)
+      }
+    } else if (allFragments) {
+      // 展开的全部碎片：碎片自己没有名字，靠每个副脑的包络环 + 名牌来分区
+      const groups = new Map<string, GraphNode[]>()
+      for (const n of data.nodes) {
+        if (n.level !== 'chunk') continue
+        groups.set(n.brain_id, [...(groups.get(n.brain_id) ?? []), n])
+      }
+      for (const [bid, ns] of groups) {
+        if (!bid) continue          // unfiled ideas have no brain to draw a ring for
+        const c = ns.reduce((a, n) => ({ x: a.x + n.x, y: a.y + n.y, z: a.z + n.z }), { x: 0, y: 0, z: 0 })
+        const cx = c.x / ns.length, cy = c.y / ns.length, cz = c.z / ns.length
+        const r = Math.max(48, ...ns.map(n => Math.hypot(n.x - cx, n.y - cy, n.z - cz))) + 16
+        const lit = !dimming || hitBrains.has(bid)
+        const a = armillary(r, lit ? plateOf(ns[0]) : ink.dim, lit ? 0.22 : 0.1)
+        a.position.set(cx, cy, cz)
+        a.rotation.set(0.4 + (brainIndex.get(bid) ?? 0) * 0.7, 0.3, 0)
+        g.add(a)
+        const name = brains.find(b => b.id === bid)?.name
+        if (name) {
+          const s = makeLabel(name, lit ? ink.label : ink.labelDim, !lit, ink.shadow)
+          s.position.set(cx, cy + r + 18, cz)
+          g.add(s)
+        }
       }
     } else if (data.nodes.length) {
       const c = data.nodes.reduce((acc, n) => ({ x: acc.x + n.x, y: acc.y + n.y, z: acc.z + n.z }), { x: 0, y: 0, z: 0 })
@@ -230,7 +281,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     }
 
     // at the top level the hit fragments appear as stars inside their orbits
-    if (here.level === 'brain') {
+    if (level === 'brain') {
       for (const n of hits) {
         const st = sprite(discTex(plateOf(n)), 9)
         st.position.set(n.x, n.y, n.z)
@@ -263,7 +314,7 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
     scene.add(g)
     chartRef.current = g
     return () => { scene.remove(g) }
-  }, [data, hits, dimming, here.level, span, ink, brainIndex, hitBrains, dark])
+  }, [data, hits, dimming, level, allFragments, brains, span, ink, brainIndex, hitBrains, dark])
 
   // gentle idle rotation; pause it while hits are spotlighted so the fly-to isn't fought
   useEffect(() => {
@@ -288,9 +339,15 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
       { x: c.x / n, y: c.y / n, z: c.z / n }, 1100)
   }, [hits, dimming])
 
+  const cooccurCount = useMemo(() => data.links.filter(l => l.kind === 'cooccur').length, [data.links])
+  const ideaCount = useMemo(() => data.nodes.filter(n => n.level === 'idea').length, [data.nodes])
+  const mainCount = data.nodes.length - ideaCount
+  const ideaMeta = ideaCount ? ` · ${ideaCount} 个想法` : ''  
+
   const drill = (n: GraphNode) => {
     if (n.level === 'brain') setCrumbs([...crumbs, { level: 'cluster', id: n.id, label: n.label }])
     else if (n.level === 'cluster') setCrumbs([...crumbs, { level: 'chunk', id: n.id, label: n.label }])
+    else if (n.level === 'idea') onPickIdea?.(n.id)
     else onPickChunk?.(n.id)
   }
 
@@ -303,12 +360,20 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
             {c.label}
           </button>
         ))}
+        {top && (
+          <div className="seg" role="group" aria-label="星图粒度">
+            <button className={expand ? '' : 'on'} onClick={() => setExpand(false)}>副脑</button>
+            <button className={expand ? 'on' : ''} onClick={() => setExpand(true)}>碎片</button>
+          </div>
+        )}
         <span className="crumb-meta">
-          {here.level === 'brain'
-            ? `${data.nodes.length} 个副脑 · 共 ${total} 条碎片`
-            : here.level === 'cluster'
-            ? `${data.nodes.length} 个主题 · 共 ${total} 条碎片`
-            : `${data.nodes.length} / ${total} 条碎片`}
+          {allFragments
+            ? `${mainCount} / ${total} 条碎片 · ${cooccurCount} 条辩论连线${ideaMeta}`
+            : level === 'brain'
+            ? `${mainCount} 个副脑 · 共 ${total} 条碎片${cooccurCount ? ` · ${cooccurCount} 条辩论连线` : ''}${ideaMeta}`
+            : level === 'cluster'
+            ? `${mainCount} 个主题 · 共 ${total} 条碎片${ideaMeta}`
+            : `${mainCount} / ${total} 条碎片${ideaMeta}`}
         </span>
       </div>
 
@@ -331,16 +396,28 @@ export default function GalaxyView({ activeIds, onPickChunk, refreshKey = 0, the
           // brain = ring with a core, cluster = disc, chunk = small star
           if (n.level === 'brain') g.add(sprite(ringTex(color), r * 2))
           else if (n.level === 'cluster') g.add(sprite(discTex(color), r * 2))
+          else if (n.level === 'idea') g.add(sprite(starTex(lit ? ink.idea : ink.dim), Math.max(r * 2.4, 15)))
           else g.add(sprite(discTex(color), Math.max(r * 2, 7)))
           if (n.level !== 'chunk') {
-            const s = makeLabel(n.label, lit ? ink.label : ink.labelDim, !lit, ink.shadow)
-            s.position.set(0, r + 14, 0)
+            const isIdea = n.level === 'idea'
+            const s = makeLabel(n.label, isIdea ? (lit ? ink.idea : ink.labelDim)
+                                                : (lit ? ink.label : ink.labelDim),
+                                !lit, ink.shadow, isIdea ? 0.21 : 0.34)
+            s.position.set(0, r + (isIdea ? 11 : 14), 0)
             g.add(s)
           }
           return g
         }}
-        linkColor={(l: any) => (l.kind === 'hit' ? ink.plates[0] : ink.hair)}
-        linkWidth={(l: any) => (l.kind === 'hit' ? 1.4 : 0.4)}
+        linkLabel={(l: any) => (l.kind === 'cooccur'
+          ? `<div class="tip">同场辩论用过 · <b>${l.weight} 次</b></div>`
+          : l.kind === 'seed' ? '<div class="tip">这个想法开出的辩论用到了它</div>' : '')}
+        linkColor={(l: any) => (l.kind === 'seed' ? ink.idea
+          : l.kind === 'contains' ? ink.hair : ink.plates[0])}
+        // 共现边的粗细是场次的对数：接通一次是细线，反复接通才变成主干
+        linkWidth={(l: any) => (l.kind === 'cooccur'
+          ? Math.min(3.2, 0.7 + Math.log2(1 + (l.weight || 1)) * 1.1)
+          : l.kind === 'hit' ? 1.4 : l.kind === 'seed' ? 0.7 : 0.4)}
+        linkCurvature={(l: any) => (l.kind === 'cooccur' ? 0.14 : l.kind === 'seed' ? 0.28 : 0)}
         linkOpacity={0.5}
         linkDirectionalParticles={(l: any) => (l.kind === 'hit' ? 4 : 0)}
         linkDirectionalParticleWidth={2.4}

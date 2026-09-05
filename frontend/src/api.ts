@@ -1,5 +1,6 @@
 import type {
-  Brain, Card, Debate, DebateConfig, GraphResponse, Level, SettingsView, Spark, Turn,
+  Brain, Card, Debate, DebateConfig, GraphResponse, Idea, IdeaStatus, Level,
+  NightPrefs, NightStatus, SettingsView, Turn,
 } from './types'
 
 const J = { 'Content-Type': 'application/json' }
@@ -35,20 +36,39 @@ export const api = {
   },
   chunk: (id: string) => req<any>(`/api/graph/chunk/${id}`),
 
-  // ---- sparks
-  sparks: () => req<Spark[]>('/api/sparks'),
-  spark: (id: string) => req<Spark>(`/api/sparks/${id}`),
-  createSpark: (text: string) =>
-    req<Spark>('/api/sparks', { method: 'POST', headers: J, body: JSON.stringify({ text }) }),
+  // ---- ideas (灵光 / 我来出题 / agent 提案)
+  ideas: (q: { status?: IdeaStatus; origin?: 'user' | 'agent' } = {}) => {
+    const p = new URLSearchParams(q as Record<string, string>)
+    return req<Idea[]>(`/api/ideas${p.toString() ? `?${p}` : ''}`)
+  },
+  idea: (id: string) => req<Idea>(`/api/ideas/${id}`),
+  createIdea: (body: {
+    text?: string; kind?: 'eureka' | 'motion'; brain_id?: string | null
+    image_data_url?: string; image_caption?: string
+  }) => req<Idea>('/api/ideas', { method: 'POST', headers: J, body: JSON.stringify(body) }),
+  patchIdea: (id: string, patch: {
+    text?: string; brain_id?: string | null; status?: IdeaStatus; image_caption?: string
+  }) => req<Idea>(`/api/ideas/${id}`, { method: 'PATCH', headers: J, body: JSON.stringify(patch) }),
+  deleteIdea: (id: string) => req<{ ok: boolean }>(`/api/ideas/${id}`, { method: 'DELETE' }),
   rehit: (id: string, wildness: number) =>
-    req<Spark>(`/api/sparks/${id}/rehit?wildness=${wildness}`, { method: 'POST' }),
+    req<Idea>(`/api/ideas/${id}/rehit?wildness=${wildness}`, { method: 'POST' }),
+  ideaImage: (id: string) => `/api/ideas/${id}/image`,
+
+  // ---- 夜间发现
+  night: () => req<NightStatus>('/api/night'),
+  putNight: (p: NightPrefs) =>
+    req<NightStatus>('/api/night', { method: 'PUT', headers: J, body: JSON.stringify(p) }),
+  runNight: () => req<NightStatus>('/api/night/run', { method: 'POST' }),
+  rephrase: (id: string) =>
+    req<Idea>(`/api/night/ideas/${id}/rephrase`, { method: 'POST' }),
 
   // ---- debates
-  createDebate: (sparkId: string, config: Partial<DebateConfig>) =>
+  createDebate: (ideaId: string, config: Partial<DebateConfig>) =>
     req<Debate>('/api/debates', {
       method: 'POST', headers: J,
-      body: JSON.stringify({ spark_id: sparkId, config }),
+      body: JSON.stringify({ idea_id: ideaId, config }),
     }),
+  debate: (id: string) => req<Debate>(`/api/debates/${id}`),
   turns: (id: string) => req<Turn[]>(`/api/debates/${id}/turns`),
   debateCards: (id: string) => req<Card[]>(`/api/debates/${id}/cards`),
 

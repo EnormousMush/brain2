@@ -48,3 +48,18 @@ export const Upload = () => (
 export const Clipboard = () => (
   <svg {...base}><rect x="6" y="4" width="12" height="17" rx="2" /><path d="M9 4V3h6v1M9 10h6M9 14h6" /></svg>
 )
+export const Bulb = () => (
+  <svg {...base}><path d="M9 18h6M10 21h4" />
+    <path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5.9 1.1 1 1.7l.1.5h5l.1-.5c.1-.6.4-1.2 1-1.7A6 6 0 0 0 12 3z" /></svg>
+)
+export const Image = () => (
+  <svg {...base}><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" />
+    <path d="M21 16l-5-5-6 6-2-2-5 5" /></svg>
+)
+export const Trash = () => (
+  <svg {...base}><path d="M4 7h16M10 7V5h4v2M6 7l1 13h10l1-13" /><path d="M10 11v6M14 11v6" /></svg>
+)
+export const Inbox = () => (
+  <svg {...base}><path d="M3 13h5l1.5 3h5L16 13h5" />
+    <path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2.5-8z" /></svg>
+)

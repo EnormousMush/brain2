@@ -5,7 +5,7 @@
 > 我们不让 AI 想点子，我们让 AI 只能用你自己的碎片拼点子。
 
 把你的笔记切成若干个「副脑」（工作 / 兴趣 / 经历 / 某个项目），每个副脑交给一个
-agent 代理；你随手记下一句碎念，系统抽出它的「问题骨架」，**主动排除最相似的
+agent 代理；你随手记下一个想法，系统抽出它的「问题骨架」，**主动排除最相似的
 结果**，只在中距离带上跨副脑检索，然后让四个角色固定的副脑 agent 当着你的面
 吵一架，最后结算成可溯源的想法卡片。
 
@@ -34,9 +34,10 @@ cd backend && WEAVE_OFFLINE=1 python smoke.py     # 端到端，应打印 DONE�
 
 | 模块 | 做什么 | 核心文件 |
 |---|---|---|
-| Eureka 捕捉 | 零延迟记录碎念，异步抽「问题骨架」并点亮星图 | `api/sparks.py`、`retrieval/skeleton.py` |
+| 灵光捕捉 | 零延迟记录想法（文字 / 图片+说明），异步抽「问题骨架」并点亮星图 | `api/ideas.py`、`retrieval/skeleton.py` |
 | 副脑辩论 | 反相似度检索 → 4 个固定 role → 黑板式多轮辩论 → 想法卡片 | `retrieval/analogy.py`、`debate/` |
-| 知识群可视化 | 三级语义缩放星图，坐标钉死，激活态高亮 | `indexing/layout.py`、`api/graph.py`、`GalaxyView.tsx` |
+| 夜间发现 | 它自己在星图里找题：从未接通过的中距离对 + 冷区。自动开庭 / 只递给我 | `night/discovery.py`、`night/runner.py` |
+| 知识群可视化 | 三级语义缩放星图，坐标钉死；辩论产生的共现边 | `indexing/layout.py`、`indexing/cooccurrence.py`、`GalaxyView.tsx` |
 
 ## 你的数据
 

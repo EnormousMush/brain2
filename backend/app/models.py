@@ -44,7 +44,9 @@ class IngestResult(BaseModel):
 # ------------------------------------------------------------------ graph
 class GraphNode(BaseModel):
     id: str
-    level: Literal["brain", "cluster", "chunk"]
+    # `idea` is a first-class node type, NOT a chunk. Agents cannot cite it —
+    # that separation is the whole reason it lives in its own collection.
+    level: Literal["brain", "cluster", "chunk", "idea"]
     label: str
     brain_id: str
     color: str
@@ -59,7 +61,9 @@ class GraphNode(BaseModel):
 class GraphLink(BaseModel):
     source: str
     target: str
-    kind: Literal["contains", "similar", "hit", "citation"] = "contains"
+    # cooccur = 这两个点在同一场辩论里被一起用过，weight 是场次数
+    # seed    = 这个想法开出了那场辩论
+    kind: Literal["contains", "similar", "hit", "citation", "cooccur", "seed"] = "contains"
     weight: float = 1.0
 
 
@@ -70,7 +74,7 @@ class GraphResponse(BaseModel):
     total_chunks: int
 
 
-# ------------------------------------------------------------------ spark
+# ------------------------------------------------------------------- idea
 class Skeleton(BaseModel):
     """The domain-stripped problem skeleton. This is what we retrieve WITH."""
     object: str = ""
@@ -90,18 +94,66 @@ class Hit(BaseModel):
     source_path: Optional[str] = None
 
 
-class SparkCreate(BaseModel):
-    text: str
-    kind: Literal["phrase", "link", "reference"] = "phrase"
+# An idea is a NODE TYPE OF ITS OWN, deliberately not a chunk:
+#   * 碎片 (chunks) come from the user's notes and are the ONLY thing an agent may
+#     cite. Ideas are never in the retrieval corpus, so an agent can never quote a
+#     user's own idea back at them as if it were evidence.
+#   * Agents may still READ ideas as raw material (a seed motion, or overnight
+#     material) and recombine them into something new — they just cannot cite one.
+IdeaOrigin = Literal["user", "agent"]
+IdeaKind = Literal["eureka", "motion", "proposal"]
+# inbox  = 等用户裁决（只有 agent 提案会停在这里，不进星图）
+# kept   = 用户认可，进星图
+# trashed = 弃稿箱，可恢复
+IdeaStatus = Literal["inbox", "kept", "trashed"]
 
 
-class Spark(BaseModel):
+class IdeaImage(BaseModel):
+    path: str                 # relative to DATA_DIR; served by GET /api/ideas/{id}/image
+    caption: str = ""
+
+
+class IdeaSource(BaseModel):
+    """Only on agent proposals: exactly which two 碎片 the night pulled together.
+    Keeping it lets 「换一种说法」 rephrase the SAME pairing instead of re-rolling."""
+    strategy: Literal["unconnected", "cold"] = "unconnected"
+    chunk_ids: list[str] = Field(default_factory=list)
+    brain_ids: list[str] = Field(default_factory=list)
+    quotes: list[str] = Field(default_factory=list)
+    brain_names: list[str] = Field(default_factory=list)
+    why: str = ""             # one line: why the night thought this was worth asking
+    score: float = 0.0
+
+
+class IdeaCreate(BaseModel):
+    text: str = ""
+    kind: IdeaKind = "eureka"
+    brain_id: Optional[str] = None       # None = 未归档，浮在星图中心
+    image_data_url: Optional[str] = None  # data:image/...;base64,... (client downscales)
+    image_caption: str = ""
+
+
+class IdeaPatch(BaseModel):
+    text: Optional[str] = None
+    brain_id: Optional[str] = None
+    status: Optional[IdeaStatus] = None
+    image_caption: Optional[str] = None
+
+
+class Idea(BaseModel):
     id: str
     text: str
-    kind: str
-    status: str
+    origin: IdeaOrigin = "user"
+    kind: IdeaKind = "eureka"
+    status: IdeaStatus = "kept"
+    brain_id: Optional[str] = None
+    brain_name: Optional[str] = None      # live JOIN, not stored
+    image: Optional[IdeaImage] = None
+    enrichment: str = "pending"           # pending | ready | failed (skeleton + hits)
     skeleton: Optional[Skeleton] = None
     hits: list[Hit] = Field(default_factory=list)
+    source: Optional[IdeaSource] = None   # agent proposals only
+    debate_id: Optional[str] = None       # set once this idea has been to court
     created_at: str
 
 
@@ -161,14 +213,14 @@ class Turn(BaseModel):
 
 
 class DebateCreate(BaseModel):
-    spark_id: Optional[str] = None
+    idea_id: Optional[str] = None
     motion: Optional[str] = None      # skip seed selection and force a motion
     config: DebateConfig = Field(default_factory=DebateConfig)
 
 
 class Debate(BaseModel):
     id: str
-    spark_id: Optional[str]
+    idea_id: Optional[str]
     motion: str
     status: str
     mode: str
@@ -205,6 +257,32 @@ class Card(BaseModel):
     scores: Scores
     saved: bool = False
     created_at: str
+
+
+# ------------------------------------------------------------------ night
+class NightPrefs(BaseModel):
+    """夜间发现的偏好。存在 settings 集合的 "night" 键下。
+
+    mode 是这个产品的立场开关：
+      auto    「自动开庭」—— 它们自己找题、自己吵完，早上你看结果。
+      suggest 「只递给我」—— 它们照样想 n 个，但一场都不开，等你点头。
+    """
+    mode: Literal["auto", "suggest"] = "suggest"
+    ideas_per_night: int = Field(default=3, ge=1, le=10)
+    hour: int = Field(default=3, ge=0, le=23)      # local hour
+    enabled: bool = True
+    token_budget: int = 200_000     # hard cap across the WHOLE night, not per debate
+    wildness: float = 0.55
+    last_run: Optional[str] = None          # ISO date, so a day runs at most once
+    last_summary: Optional[str] = None
+
+
+class NightStatus(BaseModel):
+    prefs: NightPrefs
+    running: bool = False
+    inbox: int = 0
+    trashed: int = 0
+    next_run: Optional[str] = None
 
 
 # --------------------------------------------------------------- settings
