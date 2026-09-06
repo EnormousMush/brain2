@@ -521,3 +521,7 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .source:hover { border-color: var(--accent-line); color: var(--fg); background: var(--accent-soft); }
 .source b { font-size: 14px; color: var(--fg); }
 .source span { font-size: 11px; line-height: 1.4; color: var(--fg-3); }
+
+.back-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px 0 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: var(--fg-2); border: 1px solid var(--line); cursor: pointer; transition: all var(--fast); }
+.back-btn:hover { color: var(--fg); border-color: var(--line-2); }

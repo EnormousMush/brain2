@@ -8,7 +8,7 @@ import Discoveries from './components/Discoveries'
 import Eureka from './components/Eureka'
 import GalaxyView from './components/GalaxyView'
 import ImportPanel from './components/ImportPanel'
-import { Debate as DebateIcon, Inbox, Map as MapIcon, Moon, Sliders, Sun, Upload } from './components/Icons'
+import { ArrowLeft, Debate as DebateIcon, Inbox, Map as MapIcon, Moon, Sliders, Sun, Upload } from './components/Icons'
 import SettingsDrawer from './components/SettingsDrawer'
 import { Glass } from './liquidGlass'
 import type { Brain, Card, Idea } from './types'
@@ -139,6 +139,10 @@ export default function App() {
         {view === 'discover' && (
           <div className="debate-view">
             <div className="debate-wrap">
+              <div className="debate-title">
+                <button className="back-btn" onClick={goHome}><ArrowLeft /> 星图</button>
+                <span className="label">发现</span>
+              </div>
               <Discoveries brains={brains} onDebate={startDebate} onChanged={reload} />
             </div>
           </div>
@@ -147,6 +151,10 @@ export default function App() {
         {view === 'console' && (
           <div className="debate-view">
             <div className="debate-wrap">
+              <div className="debate-title">
+                <button className="back-btn" onClick={goHome}><ArrowLeft /> 星图</button>
+                <span className="label">出题</span>
+              </div>
               <DebateConsole onDebate={startDebate} onSpotlight={setActive} onHitBrains={setHitBrains} />
             </div>
           </div>
@@ -156,6 +164,7 @@ export default function App() {
           <div className="debate-view">
             <div className="debate-wrap">
               <div className="debate-title">
+                <button className="back-btn" onClick={goHome}><ArrowLeft /> 星图</button>
                 <span className="label">题目</span>
                 <span className="dt">{debateTitle}</span>
                 <button className="pill ghost small" onClick={() => setView('console')}>换一题</button>

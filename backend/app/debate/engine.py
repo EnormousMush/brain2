@@ -118,7 +118,9 @@ async def run_debate(debate_id: str) -> AsyncIterator[Event]:
         except Exception:  # noqa: BLE001
             bb.motion = ""
     if not bb.motion:
-        bb.motion = f"把「{hits[0].brain_name}」里的做法搬到「{hits[-1].brain_name}」上是否值得"
+        other = next((h for h in hits if h.brain_id != hits[0].brain_id), None)
+        bb.motion = (f"把「{hits[0].brain_name}」里的做法搬到「{other.brain_name}」上是否值得"
+                     if other else f"「{hits[0].brain_name}」里的这几条笔记能否合成一个可执行的方案")
 
     hit_chunks = find("chunks", {"_id": {"$in": [h.chunk_id for h in hits]}}, fields=["tags"])
     bb.resources = sorted({t for c in hit_chunks for t in (c.get("tags") or [])})[:10]

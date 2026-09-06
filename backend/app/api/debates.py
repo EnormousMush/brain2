@@ -28,10 +28,18 @@ def _to_debate(d: dict) -> Debate:
 @router.post("", response_model=Debate, status_code=201)
 def create_debate(body: DebateCreate):
     did = nid("dbt")
+    motion = body.motion
+    if not motion and body.idea_id:
+        # the idea IS the motion: a proposal's sentence, or a user's own question.
+        # Regenerating it from the retrieval hits produced a title unrelated to
+        # what the user clicked.
+        idea = get("ideas", body.idea_id)
+        if idea and (idea.get("text") or "").strip():
+            motion = idea["text"].strip()
     insert("debates", dict(
-        id=did, idea_id=body.idea_id, motion=body.motion, status="pending",
+        id=did, idea_id=body.idea_id, motion=motion, status="pending",
         config=body.config.model_dump(),
-        blackboard=Blackboard(motion=body.motion or "").model_dump(),
+        blackboard=Blackboard(motion=motion or "").model_dump(),
         tokens_used=0, mode=body.config.mode, created_at=now(), ended_at=None,
     ))
     if body.idea_id:

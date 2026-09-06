@@ -79,8 +79,16 @@ class MockProvider(Provider):
                 role = r
                 break
         seed = int(hashlib.sha1((system + user).encode()).hexdigest()[:8], 16)
+        # prefer the [副脑] labels the prompts attach; fall back to quoted fragments
+        labels = []
+        for lb in re.findall(r"\[([^\[\]\n]{1,24})\] 「", user):
+            if lb not in labels:
+                labels.append(lb)
         frags = re.findall(r"「(.+?)」", user)[:2] or ["这段笔记", "另一段笔记"]
-        a, b = frags[0][:18], (frags[1] if len(frags) > 1 else frags[0])[:18]
+        if len(labels) >= 2:
+            a, b = labels[0][:18], labels[1][:18]
+        else:
+            a, b = frags[0][:18], (frags[1] if len(frags) > 1 else frags[0])[:18]
         tags = re.findall(r"\[([A-Za-z]{0,3}F\d+)\]", user)
         stance, tmpl = _ROLE_LINES[role]
         claim = tmpl.format(a=a, b=b)
