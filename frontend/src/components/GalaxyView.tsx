@@ -14,7 +14,7 @@ const THEME = {
     hues: ['#A78BFA', '#F472B6', '#38BDF8', '#FBBF24', '#34D399', '#FB7185', '#60A5FA', '#F97316',
            '#2DD4BF', '#E879F9', '#A3E635', '#F59E0B', '#818CF8'],
     core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true, idea: '#D6B36A',
-    cloudOpacity: 0.75, cloudSize: 4.2,
+    cloudOpacity: 0.6, cloudSize: 4,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
@@ -509,7 +509,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onClear, on
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
-            g.add(sprite(fragTex(hue), Math.max(r * 1.6, 9), lit ? 0.95 : 0.25, T.additive && lit))
+            g.add(sprite(fragTex(hue), Math.max(r * 1.4, 8), lit ? 0.92 : 0.25, false))
             if (active.has(n.id)) g.add(sprite(coreTex(hue), r * 3, 0.6, T.additive))
           }
           if (n.level === 'cluster') {
