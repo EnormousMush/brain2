@@ -82,7 +82,7 @@ class MockProvider(Provider):
         # prefer the [副脑] labels the prompts attach; fall back to quoted fragments
         labels = []
         for lb in re.findall(r"\[([^\[\]\n]{1,24})\] 「", user):
-            if lb not in labels:
+            if lb not in labels and not re.fullmatch(r"[A-Za-z]{0,3}F\d+", lb):   # [F1] is a fragment tag, not a brain
                 labels.append(lb)
         frags = re.findall(r"「(.+?)」", user)[:2] or ["这段笔记", "另一段笔记"]
         if len(labels) >= 2:
