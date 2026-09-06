@@ -49,7 +49,7 @@ async def ingest_upload(name: str = Form(...), kind: str = Form("domain"),
     for f in files:
         docs += read_upload(f.filename or "upload", await f.read())
     if not docs:
-        raise HTTPException(400, "no readable .md/.txt found (zip is walked, not extracted)")
+        raise HTTPException(400, "没有可读取的文件（支持 .md .txt .csv .docx .pdf .html，或包含它们的 .zip / 文件夹）")
     bid = _create(name, kind, color, "upload")
     stats = await ingest_documents(bid, docs)
     layout_all()

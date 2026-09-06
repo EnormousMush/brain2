@@ -7,7 +7,7 @@ import DebateTheater from './components/DebateTheater'
 import Discoveries from './components/Discoveries'
 import Eureka from './components/Eureka'
 import GalaxyView from './components/GalaxyView'
-import { Clipboard, Debate as DebateIcon, Inbox, Map as MapIcon, Moon, Sliders, Sparkle, Sun, Upload } from './components/Icons'
+import { Clipboard, Debate as DebateIcon, Folder, Inbox, Map as MapIcon, Moon, Sliders, Sparkle, Sun, Upload } from './components/Icons'
 import SettingsDrawer from './components/SettingsDrawer'
 import SparkBar from './components/SparkBar'
 import { Glass } from './liquidGlass'
@@ -99,8 +99,15 @@ export default function App() {
   }
   const importFiles = async (files: FileList | null) => {
     if (!files?.length) return
-    const n = prompt('这个副脑叫什么？') || '未命名副脑'
-    await api.upload(n, files); reload()
+    const ok = /\.(md|markdown|txt|csv|org|zip|docx|pdf|html?)$/i
+    const picked = Array.from(files).filter(f => ok.test(f.name)
+      && !/(^|\/)(\.obsidian|\.trash|node_modules|__MACOSX|\.git)\//.test((f as any).webkitRelativePath || ''))
+    if (!picked.length) { alert('没有可读取的文件（支持 md / txt / csv / docx / pdf / html / zip）'); return }
+    const top = ((picked[0] as any).webkitRelativePath || '').split('/')[0]
+    const n = prompt(`这个副脑叫什么？（${picked.length} 个文件）`, top || '') || '未命名副脑'
+    const dt = new DataTransfer()
+    picked.slice(0, 2000).forEach(f => dt.items.add(f))
+    await api.upload(n, dt.files); reload()
   }
 
   const goHome = () => { setView('home') }
@@ -128,7 +135,12 @@ export default function App() {
           )}
           <Glass as="label" className="chip-btn" title="导入笔记" aria-label="导入笔记">
             <Upload />
-            <input type="file" multiple accept=".md,.txt,.zip" hidden onChange={e => importFiles(e.target.files)} />
+            <input type="file" multiple accept=".md,.txt,.csv,.markdown,.org,.zip,.docx,.pdf,.html,.htm" hidden onChange={e => importFiles(e.target.files)} />
+          </Glass>
+          <Glass as="label" className="chip-btn" title="导入文件夹（Obsidian 库、Notion 导出）" aria-label="导入文件夹">
+            <Folder />
+            <input type="file" multiple hidden {...({ webkitdirectory: '', directory: '' } as any)}
+                   onChange={e => importFiles(e.target.files)} />
           </Glass>
           <Glass as="button" className="chip-btn" title="粘贴笔记" aria-label="粘贴笔记" onClick={importPaste}><Clipboard /></Glass>
           <Glass as="button" className="chip-btn" title="切换主题" aria-label="切换主题"
@@ -166,7 +178,7 @@ export default function App() {
                   <p>笔记会被切成碎片，按主题分组，并在星图上获得固定位置。</p>
                   <label className="pill primary">
                     <Upload /> 导入笔记
-                    <input type="file" multiple accept=".md,.txt,.zip" hidden onChange={e => importFiles(e.target.files)} />
+                    <input type="file" multiple accept=".md,.txt,.csv,.markdown,.org,.zip,.docx,.pdf,.html,.htm" hidden onChange={e => importFiles(e.target.files)} />
                   </label>
                 </div>
               </div>

@@ -30,6 +30,14 @@ OFFLINE=1 ./run.sh           # 离线模式：不联网、不需要 API Key、�
 cd backend && WEAVE_OFFLINE=1 python smoke.py     # 端到端，应打印 DONE（用 weave_smoke 库，不碰演示数据）
 ```
 
+## 导入笔记
+
+- 粘贴一段文字
+- 上传文件：`.md` `.txt` `.csv` `.docx` `.pdf` `.html`，或包含它们的 `.zip`
+- 选择整个文件夹：Obsidian 库、Notion 导出目录、桌面上的笔记文件夹都可以直接选（自动跳过 `.obsidian` 等配置目录）
+
+不接 Notion / Google Drive 的在线授权：本地文件已经覆盖这些工具的导出格式，而且演示当天不依赖外网。
+
 ## 三个模块
 
 | 模块 | 做什么 | 核心文件 |

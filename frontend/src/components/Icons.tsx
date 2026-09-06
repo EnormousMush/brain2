@@ -63,3 +63,6 @@ export const Inbox = () => (
   <svg {...base}><path d="M3 13h5l1.5 3h5L16 13h5" />
     <path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2.5-8z" /></svg>
 )
+export const Folder = () => (
+  <svg {...base}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" /></svg>
+)
