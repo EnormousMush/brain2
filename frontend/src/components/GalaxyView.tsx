@@ -14,7 +14,7 @@ const THEME = {
     hues: ['#A78BFA', '#F472B6', '#38BDF8', '#FBBF24', '#34D399', '#FB7185', '#60A5FA', '#F97316',
            '#2DD4BF', '#E879F9', '#A3E635', '#F59E0B', '#818CF8'],
     core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true, idea: '#D6B36A',
-    cloudOpacity: 0.55, cloudSize: 3.4,
+    cloudOpacity: 0.75, cloudSize: 4.2,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
@@ -39,8 +39,8 @@ function canvasTex(key: string, size: number, draw: (ctx: CanvasRenderingContext
 /** soft white dot: the particle of every cloud (tinted by material colour) */
 const softDot = () => canvasTex('soft', 64, (ctx, s) => {
   const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
-  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,.8)')
-  g.addColorStop(1, 'rgba(255,255,255,0)')
+  g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.22, 'rgba(255,255,255,.55)')
+  g.addColorStop(0.6, 'rgba(255,255,255,.18)'); g.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
 })
 /** glowing core */
@@ -61,6 +61,12 @@ const starTex = (color: string) => canvasTex(`star:${color}`, 128, (ctx, s) => {
   }
   ctx.closePath()
   ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineJoin = 'round'; ctx.stroke()
+})
+/** a lit fragment: bright core, coloured body, soft edge */
+const fragTex = (color: string) => canvasTex(`frag:${color}`, 64, (ctx, s) => {
+  const g = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2)
+  g.addColorStop(0, '#FFFFFF'); g.addColorStop(0.28, color); g.addColorStop(0.62, color + 'AA'); g.addColorStop(1, color + '00')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, s, s)
 })
 /** plain disc, anti-aliased edge (clusters and stars) */
 const discTex = (color: string) => canvasTex(`disc:${color}`, 128, (ctx, s) => {
@@ -263,7 +269,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onClear, on
     if (level === 'brain') {
       for (const [bid, list] of byBrain) {
         const lit = !dimming || hitBrains.has(bid)
-        g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, false))
+        g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, T.additive))
       }
     }
 
@@ -503,7 +509,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onClear, on
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
-            g.add(sprite(discTex(hue), Math.max(r * 1.1, 6), lit ? 0.9 : 0.25))
+            g.add(sprite(fragTex(hue), Math.max(r * 1.6, 9), lit ? 0.95 : 0.25, T.additive && lit))
             if (active.has(n.id)) g.add(sprite(coreTex(hue), r * 3, 0.6, T.additive))
           }
           if (n.level === 'cluster') {
