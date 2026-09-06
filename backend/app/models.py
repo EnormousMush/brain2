@@ -203,9 +203,10 @@ class Turn(BaseModel):
     brain_name: Optional[str] = None
     stance: Optional[Stance] = None
     claim: Optional[str] = None
+    claim_id: Optional[str] = None          # id of the claim this turn put on the blackboard
     body: str = ""
     citations: list[str] = Field(default_factory=list)
-    attacks: list[str] = Field(default_factory=list)
+    attacks: list[str] = Field(default_factory=list)   # claim ids this turn refutes
     novelty: Optional[float] = None
     rejected: bool = False
     tokens: int = 0

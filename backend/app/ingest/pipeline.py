@@ -146,8 +146,18 @@ def read_upload(filename: str, blob: bytes) -> list[tuple[str, str]]:
 
 
 # ----------------------------------------------------------------- ingest
-async def ingest_documents(brain_id: str, docs: list[tuple[str, str]]) -> dict:
+async def ingest_documents(brain_id: str, docs: list[tuple[str, str]],
+                           progress=None) -> dict:
+    """`progress(stage, done, total)` is called as work advances so an import job
+    can show 切分 → 向量化 → 聚类 → 布局 to the user."""
+    def report(stage: str, done: int = 0, total: int = 0) -> None:
+        if progress:
+            try:
+                progress(stage, done, total)
+            except Exception:  # noqa: BLE001
+                pass
     t0 = time.time()
+    report("split", 0, len(docs))
     rows: list[dict] = []
     texts: list[str] = []
     for source_path, body in docs:
@@ -161,16 +171,26 @@ async def ingest_documents(brain_id: str, docs: list[tuple[str, str]]) -> dict:
             texts.append(chunk)
 
     if not rows:
+        report("done", 0, 0)
         return {"chunks": 0, "clusters": 0, "seconds": round(time.time() - t0, 2)}
 
-    vecs = await embed_texts(texts)
+    report("embed", 0, len(texts))
+    emb = get_embedder()
+    out: list[np.ndarray] = []
+    for i in range(0, len(texts), 128):
+        out.append(await emb.embed(texts[i : i + 128]))
+        report("embed", min(len(texts), i + 128), len(texts))
+    vecs = np.vstack(out)
     for r, v in zip(rows, vecs):
         r["embedding"] = to_blob(v)
     insert_many("chunks", rows)
     update_id("brains", brain_id, {"chunk_count": count("chunks", {"brain_id": brain_id})})
 
+    report("cluster", 0, len(rows))
     n_clusters = await cluster_brain(brain_id)
+    report("layout", n_clusters, n_clusters)
     layout_brain(brain_id)
+    report("done", len(rows), len(rows))
     return {"chunks": len(rows), "clusters": n_clusters,
             "seconds": round(time.time() - t0, 2)}
 

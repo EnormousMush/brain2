@@ -84,12 +84,16 @@ class MockProvider(Provider):
         tags = re.findall(r"\[([A-Za-z]{0,3}F\d+)\]", user)
         stance, tmpl = _ROLE_LINES[role]
         claim = tmpl.format(a=a, b=b)
+        # an attacker names a claim that is really on the blackboard, so the
+        # transcript can draw who refuted whom even offline
+        claims = re.findall(r"\[(clm_[0-9a-f]+)\]", user)
+        attacks = [claims[-1]] if stance in ("attack", "reframe") and claims else []
         payload = {
             "stance": stance,
             "claim": f"{claim}#{seed % 997}",
             "body": claim + f"（mock#{seed % 997}）具体说：这条路径的关键在于把约束而不是名词对齐。",
             "citations": tags[:1],
-            "attacks": [],
+            "attacks": attacks,
         }
         if "LABEL" in system:
             payload = {"label": (a or "主题")[:6], "summary": f"关于{a}的一组笔记"}

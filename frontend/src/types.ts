@@ -84,7 +84,7 @@ export interface Turn {
   id: string; debate_id: string; round: number; seq: number; role: Role
   brain_id?: string | null; brain_name?: string | null
   stance?: Stance | null; claim?: string | null; body: string
-  citations: string[]; attacks: string[]; novelty?: number | null
+  citations: string[]; attacks: string[]; claim_id?: string | null; novelty?: number | null
   rejected: boolean; tokens: number; created_at: string
 }
 export interface DebateConfig {
@@ -136,4 +136,12 @@ export const STANCE_COLOR: Record<string, string> = {
 }
 export const STANCE_CN: Record<string, string> = {
   support: '支持', attack: '反对', reframe: '重构', summary: '小结',
+}
+
+export interface ImportJob {
+  id: string; name: string
+  stage: 'read' | 'split' | 'embed' | 'cluster' | 'layout' | 'done' | 'failed'
+  stage_cn: string; done: number; total: number; files: number
+  brain_id?: string | null; error?: string | null
+  chunks?: number; clusters?: number; seconds?: number
 }

@@ -194,7 +194,8 @@ async def run_debate(debate_id: str) -> AsyncIterator[Event]:
             recent.append(f"{ROLES[role]['cn']}：{payload['body']}")
 
             turn = _persist_turn(debate_id, rnd, seq, a, payload, rejected=False,
-                                 tokens=used, novelty=nov, claim=claim, citations=cites)
+                                 tokens=used, novelty=nov, claim=claim, citations=cites,
+                                 claim_id=c.id)
             seq += 1
             yield Event(type="turn.done", data=turn)
             await asyncio.sleep(0)  # let the SSE flush; also paces the stage demo
@@ -248,10 +249,10 @@ async def _speak(a: Agent, bb: Blackboard, recent: list[str], *,
 
 
 def _persist_turn(debate_id, rnd, seq, a: Agent, payload, *, rejected, tokens,
-                  novelty, claim=None, citations=None) -> dict:
+                  novelty, claim=None, citations=None, claim_id=None) -> dict:
     rec = dict(
         id=nid("trn"), debate_id=debate_id, round=rnd, seq=seq, role=a.role,
-        brain_id=a.brain_id, brain_name=a.brain_name,
+        brain_id=a.brain_id, brain_name=a.brain_name, claim_id=claim_id,
         stance=payload.get("stance"), claim=claim, body=payload.get("body", ""),
         citations=citations or [], attacks=payload.get("attacks", []) or [],
         novelty=novelty, rejected=bool(rejected), tokens=tokens, created_at=now(),

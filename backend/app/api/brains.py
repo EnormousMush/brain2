@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+import asyncio
+import time
+import uuid
+
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 
 from ..db import count, delete_brain, find, get, insert, nid, now, update_id
 from ..indexing.layout import layout_all
@@ -54,6 +58,62 @@ async def ingest_upload(name: str = Form(...), kind: str = Form("domain"),
     stats = await ingest_documents(bid, docs)
     layout_all()
     return IngestResult(brain=_to_brain(get("brains", bid)), **stats)
+
+
+# ------------------------------------------------------------- import jobs
+# The same import, but as a job the UI can watch: 读取 → 切分 → 向量化 → 聚类 → 布局.
+# In-process and best-effort; a restart forgets running jobs, which is fine for
+# something that lasts seconds to a minute.
+JOBS: dict[str, dict] = {}
+STAGE_CN = {"read": "读取文件", "split": "切分碎片", "embed": "向量化", "cluster": "聚类",
+            "layout": "布局", "done": "完成", "failed": "失败"}
+
+
+def _job_set(jid: str, **kw) -> None:
+    j = JOBS.get(jid)
+    if j:
+        j.update(kw)
+        j["stage_cn"] = STAGE_CN.get(j.get("stage", ""), j.get("stage", ""))
+        j["updated_at"] = time.time()
+
+
+async def _run_import(jid: str, name: str, kind: str, color: str | None, raw: list[tuple[str, bytes]]):
+    try:
+        docs: list[tuple[str, str]] = []
+        for i, (fname, blob) in enumerate(raw):
+            docs += read_upload(fname, blob)
+            _job_set(jid, stage="read", done=i + 1, total=len(raw), files=len(docs))
+            await asyncio.sleep(0)
+        if not docs:
+            _job_set(jid, stage="failed", error="没有可读取的文件")
+            return
+        bid = _create(name, kind, color, "upload")
+        _job_set(jid, brain_id=bid, files=len(docs))
+        stats = await ingest_documents(bid, docs, progress=lambda st, d, t: _job_set(jid, stage=st, done=d, total=t))
+        layout_all()
+        _job_set(jid, stage="done", done=stats["chunks"], total=stats["chunks"],
+                 chunks=stats["chunks"], clusters=stats["clusters"], seconds=stats["seconds"])
+    except Exception as e:  # noqa: BLE001
+        _job_set(jid, stage="failed", error=str(e)[:200])
+
+
+@router.post("/import", status_code=202)
+async def start_import(bg: BackgroundTasks, name: str = Form(...), kind: str = Form("domain"),
+                       color: str | None = Form(None), files: list[UploadFile] = File(...)):
+    raw = [(f.filename or "upload", await f.read()) for f in files]
+    jid = uuid.uuid4().hex[:10]
+    JOBS[jid] = {"id": jid, "name": name, "stage": "read", "stage_cn": STAGE_CN["read"], "done": 0,
+                 "total": len(raw), "files": 0, "brain_id": None, "error": None, "created_at": time.time()}
+    bg.add_task(_run_import, jid, name, kind, color, raw)
+    return JOBS[jid]
+
+
+@router.get("/import/{jid}")
+def import_status(jid: str):
+    j = JOBS.get(jid)
+    if not j:
+        raise HTTPException(404, "no such job")
+    return j
 
 
 @router.patch("/{brain_id}", response_model=Brain)

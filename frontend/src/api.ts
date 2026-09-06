@@ -1,5 +1,5 @@
 import type {
-  Brain, Card, Debate, DebateConfig, GraphResponse, Idea, IdeaStatus, Level,
+  Brain, ImportJob, Card, Debate, DebateConfig, GraphResponse, Idea, IdeaStatus, Level,
   NightPrefs, NightStatus, SettingsView, Turn,
 } from './types'
 
@@ -24,6 +24,13 @@ export const api = {
     Array.from(files).forEach(f => fd.append('files', f))
     return req('/api/brains/upload', { method: 'POST', body: fd })
   },
+  startImport: (name: string, files: FileList | File[]) => {
+    const fd = new FormData()
+    fd.append('name', name)
+    Array.from(files as any as File[]).forEach((f: File) => fd.append('files', f, (f as any).webkitRelativePath || f.name))
+    return req<ImportJob>('/api/brains/import', { method: 'POST', body: fd })
+  },
+  importStatus: (id: string) => req<ImportJob>(`/api/brains/import/${id}`),
   patchBrain: (id: string, patch: Partial<Brain>) =>
     req<Brain>(`/api/brains/${id}`, { method: 'PATCH', headers: J, body: JSON.stringify(patch) }),
 

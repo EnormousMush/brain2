@@ -155,6 +155,7 @@ function segments(pairs: [THREE.Vector3, THREE.Vector3][], color: string, opacit
 /* ------------------------------------------------------------------ view */
 interface Props {
   activeIds: string[]
+  activeMode?: 'hits' | 'card'         // card = a replayed 想法卡片: draw the × between its fragments
   onPickChunk?: (id: string) => void
   onPickIdea?: (id: string) => void
   refreshKey?: number
@@ -162,7 +163,7 @@ interface Props {
 }
 interface Crumb { level: Level; id?: string; label: string }
 
-export default function GalaxyView({ activeIds, onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
+export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
   const T = THEME[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
@@ -305,7 +306,16 @@ export default function GalaxyView({ activeIds, onPickChunk, onPickIdea, refresh
         g.add(st)
       }
     }
-    if (hits.length >= 2) {
+    if (hits.length >= 2 && activeMode === 'card') {
+      // the card's connection: every pair joined by a solid line, × at the midpoint
+      for (let i = 0; i < hits.length; i++) for (let j = i + 1; j < hits.length; j++) {
+        const a = new THREE.Vector3(hits[i].x, hits[i].y, hits[i].z), b = new THREE.Vector3(hits[j].x, hits[j].y, hits[j].z)
+        g.add(segments([[a, b]], T.core, 0.9, T.additive))
+        const x = makeLabel('×', T.core, false, T.shadow, 56, 700)
+        x.position.copy(a.clone().add(b).multiplyScalar(0.5))
+        g.add(x)
+      }
+    } else if (hits.length >= 2) {
       const c = hits.reduce((acc, n) => ({ x: acc.x + n.x, y: acc.y + n.y, z: acc.z + n.z }), { x: 0, y: 0, z: 0 })
       const centre = new THREE.Vector3(c.x / hits.length, c.y / hits.length, c.z / hits.length)
       const ordered = [...hits].sort((p, q) =>
@@ -321,7 +331,7 @@ export default function GalaxyView({ activeIds, onPickChunk, onPickIdea, refresh
     scene.add(g)
     chartRef.current = g
     return () => { scene.remove(g) }
-  }, [data, hits, dimming, level, span, T, brainIndex, hitBrains, allChunks, crumbs])
+  }, [data, hits, dimming, level, span, T, brainIndex, hitBrains, allChunks, crumbs, activeMode])
 
   // the whole chart drifts slowly; any pointer interaction pauses it, and it
   // resumes a few seconds after the user lets go

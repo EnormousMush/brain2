@@ -67,6 +67,15 @@ export default function DebateTheater({
   const streaming = !ended
   const turns = entries.filter(e => e.kind === 'turn').length
   const pad = (n: number) => String(n).padStart(2, '0')
+  // attack graph: claim id -> the turn that made it; and per turn, who refuted it
+  const byClaim = new Map<string, Turn>()
+  for (const e of entries) if (e.kind === 'turn' && e.t.claim_id) byClaim.set(e.t.claim_id, e.t)
+  const refutedBy = new Map<string, Turn[]>()
+  for (const e of entries) if (e.kind === 'turn') for (const cid of e.t.attacks || []) {
+    const target = byClaim.get(cid)
+    if (target) refutedBy.set(target.id, [...(refutedBy.get(target.id) || []), e.t])
+  }
+  const ref = (t: Turn) => `${pad(t.round)}.${pad(t.seq + 1)} ${ROLE_CN[t.role]}`
   const status = ended ? (ended.reason === 'converged' ? '意见趋同' : ended.reason === 'budget' ? '用完预算' : '到达轮数') : '进行中'
 
   return (
@@ -105,6 +114,12 @@ export default function DebateTheater({
                 {e.t.stance && (
                   <span className={`tag ${e.t.stance}`}>{STANCE_GLYPH[e.t.stance]} {STANCE_CN[e.t.stance] ?? e.t.stance}</span>
                 )}
+                {(e.t.attacks || []).map(cid => byClaim.get(cid)).filter(Boolean).map(t => (
+                  <span key={t!.id} className="tag arrow">反驳 {ref(t!)}</span>
+                ))}
+                {(refutedBy.get(e.t.id) || []).map(t => (
+                  <span key={t.id} className="tag hit">被 {ROLE_CN[t.role]} 反驳</span>
+                ))}
                 {e.t.novelty != null && <span className="label num">新意 {e.t.novelty.toFixed(2)}</span>}
               </div>
               <div className="turn-body">{e.t.body}</div>

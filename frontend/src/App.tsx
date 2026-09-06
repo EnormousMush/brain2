@@ -7,6 +7,7 @@ import DebateTheater from './components/DebateTheater'
 import Discoveries from './components/Discoveries'
 import Eureka from './components/Eureka'
 import GalaxyView from './components/GalaxyView'
+import ImportPanel from './components/ImportPanel'
 import { Clipboard, Debate as DebateIcon, Folder, Inbox, Map as MapIcon, Moon, Sliders, Sparkle, Sun, Upload } from './components/Icons'
 import SettingsDrawer from './components/SettingsDrawer'
 import SparkBar from './components/SparkBar'
@@ -29,7 +30,9 @@ function initTheme(): Theme {
  *  设置), left result panel, right brain gauges, 灵光 note in the corner. */
 export default function App() {
   const [brains, setBrains] = useState<Brain[]>([])
-  const [active, setActive] = useState<string[]>([])
+  const [active, setActiveRaw] = useState<string[]>([])
+  const [activeMode, setActiveMode] = useState<'hits' | 'card'>('hits')
+  const setActive = (ids: string[], mode: 'hits' | 'card' = 'hits') => { setActiveRaw(ids); setActiveMode(mode) }
   const [hitBrains, setHitBrains] = useState<Record<string, number>>({})
   const [debateId, setDebateId] = useState<string | null>(null)
   const [debateTitle, setDebateTitle] = useState('')
@@ -40,6 +43,7 @@ export default function App() {
   const [view, setView] = useState<View>('home')
   const [theme, setTheme] = useState<Theme>(initTheme)
   const [inboxCount, setInboxCount] = useState(0)
+  const [pending, setPending] = useState<{ files: File[]; name: string } | null>(null)   // import panel
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -97,17 +101,15 @@ export default function App() {
     await api.paste(name, text)
     reload()
   }
-  const importFiles = async (files: FileList | null) => {
+  const importFiles = (files: FileList | null) => {
     if (!files?.length) return
     const ok = /\.(md|markdown|txt|csv|org|zip|docx|pdf|html?)$/i
     const picked = Array.from(files).filter(f => ok.test(f.name)
       && !/(^|\/)(\.obsidian|\.trash|node_modules|__MACOSX|\.git)\//.test((f as any).webkitRelativePath || ''))
     if (!picked.length) { alert('没有可读取的文件（支持 md / txt / csv / docx / pdf / html / zip）'); return }
     const top = ((picked[0] as any).webkitRelativePath || '').split('/')[0]
-    const n = prompt(`这个副脑叫什么？（${picked.length} 个文件）`, top || '') || '未命名副脑'
-    const dt = new DataTransfer()
-    picked.slice(0, 2000).forEach(f => dt.items.add(f))
-    await api.upload(n, dt.files); reload()
+    const single = picked.length === 1 ? picked[0].name.replace(/\.[^.]+$/, '') : ''
+    setPending({ files: picked.slice(0, 2000), name: top || single || '' })
   }
 
   const goHome = () => { setView('home') }
@@ -167,7 +169,7 @@ export default function App() {
         {view === 'home' && (
           <div className="home">
             {!noBrains && (
-              <GalaxyView activeIds={active} refreshKey={refresh} theme={theme}
+              <GalaxyView activeIds={active} activeMode={activeMode} refreshKey={refresh} theme={theme}
                           onPickChunk={id => setActive([id])} onPickIdea={pickIdea} />
             )}
             {noBrains ? (
@@ -218,13 +220,17 @@ export default function App() {
               <DebateTheater debateId={debateId} onCards={setCards} onActive={setActive}
                              onCite={ids => { setActive(ids); setView('home') }} />
               <CardDeck cards={cards}
-                        onReplay={ids => { setActive(ids); setView('home') }}
+                        onReplay={ids => { setActive(ids, 'card'); setView('home') }}
                         onSaved={c => setCards(cs => cs.map(x => (x.id === c.id ? c : x)))} />
             </div>
           </div>
         )}
       </main>
 
+      {pending && (
+        <ImportPanel files={pending.files} defaultName={pending.name}
+                     onDone={reload} onClose={() => setPending(null)} />
+      )}
       {settings && <div className="scrim" onClick={() => setSettings(false)} />}
       <SettingsDrawer open={settings} onClose={() => setSettings(false)} brains={brains} onBrainsChanged={reload} />
     </div>
