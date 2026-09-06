@@ -8,9 +8,8 @@ import Discoveries from './components/Discoveries'
 import Eureka from './components/Eureka'
 import GalaxyView from './components/GalaxyView'
 import ImportPanel from './components/ImportPanel'
-import { Clipboard, Debate as DebateIcon, Folder, Inbox, Map as MapIcon, Moon, Sliders, Sparkle, Sun, Upload } from './components/Icons'
+import { Debate as DebateIcon, Inbox, Map as MapIcon, Moon, Sliders, Sun, Upload } from './components/Icons'
 import SettingsDrawer from './components/SettingsDrawer'
-import SparkBar from './components/SparkBar'
 import { Glass } from './liquidGlass'
 import type { Brain, Card, Idea } from './types'
 
@@ -39,11 +38,10 @@ export default function App() {
   const [cards, setCards] = useState<Card[]>([])
   const [settings, setSettings] = useState(false)
   const [refresh, setRefresh] = useState(0)
-  const [running, setRunning] = useState(false)
   const [view, setView] = useState<View>('home')
   const [theme, setTheme] = useState<Theme>(initTheme)
   const [inboxCount, setInboxCount] = useState(0)
-  const [pending, setPending] = useState<{ files: File[]; name: string } | null>(null)   // import panel
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -69,20 +67,6 @@ export default function App() {
     setView('debate')
   }
 
-  const runExample = async () => {
-    if (running) return
-    setRunning(true)
-    try {
-      const idea = await api.createIdea({ text: '能不能把排队等电梯的调度思路，搬到即兴演奏和搬家节奏里？', kind: 'motion' })
-      for (let i = 0; i < 25; i++) {
-        const s = await api.idea(idea.id).catch(() => null)
-        if (s?.enrichment === 'ready') { await startDebate(s, 0.6); break }
-        if (s?.enrichment === 'failed') break
-        await new Promise(r => setTimeout(r, 350))
-      }
-    } finally { setRunning(false) }
-  }
-
   // clicking a 想法 on the chart lights the fragments it is near
   const pickIdea = async (id: string) => {
     const i = await api.idea(id).catch(() => null)
@@ -93,24 +77,6 @@ export default function App() {
     setHitBrains(counts)
   }
 
-  const importPaste = async () => {
-    const name = prompt('这个副脑叫什么？（例：工作·系统设计）')
-    if (!name) return
-    const text = prompt('粘贴一段笔记：')
-    if (!text) return
-    await api.paste(name, text)
-    reload()
-  }
-  const importFiles = (files: FileList | null) => {
-    if (!files?.length) return
-    const ok = /\.(md|markdown|txt|csv|org|zip|docx|pdf|html?)$/i
-    const picked = Array.from(files).filter(f => ok.test(f.name)
-      && !/(^|\/)(\.obsidian|\.trash|node_modules|__MACOSX|\.git)\//.test((f as any).webkitRelativePath || ''))
-    if (!picked.length) { alert('没有可读取的文件（支持 md / txt / csv / docx / pdf / html / zip）'); return }
-    const top = ((picked[0] as any).webkitRelativePath || '').split('/')[0]
-    const single = picked.length === 1 ? picked[0].name.replace(/\.[^.]+$/, '') : ''
-    setPending({ files: picked.slice(0, 2000), name: top || single || '' })
-  }
 
   const goHome = () => { setView('home') }
   const noBrains = brains.length === 0
@@ -122,29 +88,8 @@ export default function App() {
           <span className="mark" /><span className="wordmark">副脑</span>
         </button>
 
-        {!noBrains && (
-          <div className="top-center">
-            <SparkBar running={running} showResult={view === 'home'} onDebate={startDebate} onSpotlight={setActive}
-                      onHitBrains={setHitBrains} onRunExample={runExample} onCreated={() => setRefresh(x => x + 1)} />
-          </div>
-        )}
-
         <div className="top-right">
-          {!noBrains && (
-            <button className="pill primary" onClick={runExample} disabled={running}>
-              <Sparkle /> {running ? '进行中' : '试一个例子'}
-            </button>
-          )}
-          <Glass as="label" className="chip-btn" title="导入笔记" aria-label="导入笔记">
-            <Upload />
-            <input type="file" multiple accept=".md,.txt,.csv,.markdown,.org,.zip,.docx,.pdf,.html,.htm" hidden onChange={e => importFiles(e.target.files)} />
-          </Glass>
-          <Glass as="label" className="chip-btn" title="导入文件夹（Obsidian 库、Notion 导出）" aria-label="导入文件夹">
-            <Folder />
-            <input type="file" multiple hidden {...({ webkitdirectory: '', directory: '' } as any)}
-                   onChange={e => importFiles(e.target.files)} />
-          </Glass>
-          <Glass as="button" className="chip-btn" title="粘贴笔记" aria-label="粘贴笔记" onClick={importPaste}><Clipboard /></Glass>
+          <Glass as="button" className="chip-btn" title="导入笔记" aria-label="导入笔记" onClick={() => setImporting(true)}><Upload /></Glass>
           <Glass as="button" className="chip-btn" title="切换主题" aria-label="切换主题"
                  onClick={() => setTheme(t => (t === 'dark' ? 'light' : 'dark'))}>
             {theme === 'dark' ? <Sun /> : <Moon />}
@@ -178,10 +123,7 @@ export default function App() {
                   <span className="label">00 · 开始</span>
                   <h2>导入一段笔记，建立第一个副脑</h2>
                   <p>笔记会被切成碎片，按主题分组，并在星图上获得固定位置。</p>
-                  <label className="pill primary">
-                    <Upload /> 导入笔记
-                    <input type="file" multiple accept=".md,.txt,.csv,.markdown,.org,.zip,.docx,.pdf,.html,.htm" hidden onChange={e => importFiles(e.target.files)} />
-                  </label>
+                  <button className="pill primary" onClick={() => setImporting(true)}><Upload /> 导入笔记</button>
                 </div>
               </div>
             ) : (
@@ -227,10 +169,7 @@ export default function App() {
         )}
       </main>
 
-      {pending && (
-        <ImportPanel files={pending.files} defaultName={pending.name}
-                     onDone={reload} onClose={() => setPending(null)} />
-      )}
+      {importing && <ImportPanel onDone={reload} onClose={() => setImporting(false)} />}
       {settings && <div className="scrim" onClick={() => setSettings(false)} />}
       <SettingsDrawer open={settings} onClose={() => setSettings(false)} brains={brains} onBrainsChanged={reload} />
     </div>
