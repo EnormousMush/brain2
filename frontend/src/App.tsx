@@ -115,6 +115,7 @@ export default function App() {
           <div className="home">
             {!noBrains && (
               <GalaxyView activeIds={active} activeMode={activeMode} refreshKey={refresh} theme={theme}
+                          onClear={() => { setActive([]); setHitBrains({}) }}
                           onPickChunk={id => setActive([id])} onPickIdea={pickIdea} />
             )}
             {noBrains ? (

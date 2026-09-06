@@ -14,14 +14,14 @@ const THEME = {
     hues: ['#A78BFA', '#F472B6', '#38BDF8', '#FBBF24', '#34D399', '#FB7185', '#60A5FA', '#F97316',
            '#2DD4BF', '#E879F9', '#A3E635', '#F59E0B', '#818CF8'],
     core: '#7DF9FF', dim: '#1E2129', wire: '#FFFFFF', additive: true, idea: '#D6B36A',
-    cloudOpacity: 0.9, cloudSize: 5,
+    cloudOpacity: 0.55, cloudSize: 3.4,
   },
   light: {
     paper: '#FAFAF7', label: '#111418', labelDim: '#8A939E', shadow: 'rgba(250,250,247,0.95)',
     hues: ['#8B7CC8', '#C97B9E', '#6FA8C9', '#C9A66F', '#6FB59A', '#C98486', '#7A93C9', '#C98E6A',
            '#6FB3AD', '#B784C4', '#9BB56F', '#C4A15F', '#8A8FC9'],
     core: '#2148B8', dim: '#DFE2E8', wire: '#111418', additive: false, idea: '#8A6A22',
-    cloudOpacity: 0.8, cloudSize: 4,
+    cloudOpacity: 0.7, cloudSize: 3,
   },
 }
 
@@ -156,6 +156,7 @@ function segments(pairs: [THREE.Vector3, THREE.Vector3][], color: string, opacit
 interface Props {
   activeIds: string[]
   activeMode?: 'hits' | 'card'         // card = a replayed 想法卡片: draw the × between its fragments
+  onClear?: () => void                 // empty-space click / Esc: back to the plain chart
   onPickChunk?: (id: string) => void
   onPickIdea?: (id: string) => void
   refreshKey?: number
@@ -163,7 +164,7 @@ interface Props {
 }
 interface Crumb { level: Level; id?: string; label: string }
 
-export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
+export default function GalaxyView({ activeIds, activeMode = 'hits', onClear, onPickChunk, onPickIdea, refreshKey = 0, theme = 'dark' }: Props) {
   const dark = theme === 'dark'
   const T = THEME[dark ? 'dark' : 'light']
   const fgRef = useRef<any>(null)
@@ -262,7 +263,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk
     if (level === 'brain') {
       for (const [bid, list] of byBrain) {
         const lit = !dimming || hitBrains.has(bid)
-        g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, T.additive))
+        g.add(cloud(list, 1, 0, lit ? hueOf(bid) : T.dim, T.cloudSize, lit ? T.cloudOpacity : 0.12, false))
       }
     }
 
@@ -301,7 +302,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk
     // hit fragments as bright stars at the top level, plus the constellation
     if (level === 'brain') {
       for (const n of hits) {
-        const st = sprite(coreTex(hueOf(n.brain_id)), 26, 1, T.additive)
+        const st = sprite(coreTex(hueOf(n.brain_id)), 22, 0.85, T.additive)
         st.position.set(n.x, n.y, n.z)
         g.add(st)
       }
@@ -406,16 +407,31 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk
         let pr = params.get(id)
         if (!pr) {
           let h = hash(id); const r = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296 }
-          pr = [9 + r() * 10, 9 + r() * 10, 9 + r() * 10, r() * 6.28, r() * 6.28, r() * 6.28, 3 + r() * 3]
+          pr = [9 + r() * 10, 9 + r() * 10, 9 + r() * 10, r() * 6.28, r() * 6.28, r() * 6.28, 3 + r() * 3,
+                T0 + 2 + r() * 10, 0]                     // [7] next shiver at, [8] shiver started at
           params.set(id, pr)
         }
         const [px, py, pz, ax, ay, az, amp] = pr
-        g.position.set(Math.sin(T0 / px * 6.283 + ax) * amp, Math.sin(T0 / py * 6.283 + ay) * amp, Math.sin(T0 / pz * 6.283 + az) * amp * 0.6)
+        let sx = 0, sy = 0
+        // a quick shiver every 6–16 s: ~0.4 s of high-frequency jitter that dies out
+        if (T0 >= pr[7]) { pr[8] = T0; pr[7] = T0 + 6 + Math.random() * 10 }
+        const since = T0 - pr[8]
+        if (since >= 0 && since < 0.45) {
+          const env = Math.exp(-since * 9) * 2.2
+          sx = Math.sin(since * 95) * env; sy = Math.cos(since * 83) * env
+        }
+        g.position.set(Math.sin(T0 / px * 6.283 + ax) * amp + sx, Math.sin(T0 / py * 6.283 + ay) * amp + sy, Math.sin(T0 / pz * 6.283 + az) * amp * 0.6)
       }
     }
     raf = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(raf)
   }, [])
+
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape' && activeIds.length) onClear?.() }
+    window.addEventListener('keydown', h)
+    return () => window.removeEventListener('keydown', h)
+  }, [activeIds.length, onClear])
 
   const drill = (n: GraphNode) => {
     if (n.level === 'idea') onPickIdea?.(n.id)
@@ -480,15 +496,17 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk
           } else if (n.level === 'idea') {
             const ic = lit ? T.idea : T.dim
             g.add(sprite(starTex(ic), 22, lit ? 1 : 0.3))
-            const s = makeLabel(n.label, lit ? ic : T.labelDim, !lit, T.shadow, 30, 500)
-            s.position.set(0, 20, 0)
+            const short = n.label.length > 7 ? n.label.slice(0, 6) + '…' : n.label
+            const s = makeLabel(short, lit ? ic : T.labelDim, !lit, T.shadow, 26, 500)
+            s.position.set(0, 18, 0)
             g.add(s)
           } else if (n.level === 'cluster') {
             g.add(sprite(discTex(hue), r * 1.6, lit ? 0.95 : 0.3))
           } else {
-            g.add(sprite(coreTex(hue), Math.max(r * 2.2, 10), lit ? 1 : 0.25, T.additive))
+            g.add(sprite(discTex(hue), Math.max(r * 1.1, 6), lit ? 0.9 : 0.25))
+            if (active.has(n.id)) g.add(sprite(coreTex(hue), r * 3, 0.6, T.additive))
           }
-          if (n.level !== 'chunk') {
+          if (n.level === 'cluster') {
             const s = makeLabel(n.label, lit ? T.label : T.labelDim, !lit, T.shadow)
             s.position.set(0, r * 1.15 + 12, 0)
             g.add(s)
@@ -503,6 +521,7 @@ export default function GalaxyView({ activeIds, activeMode = 'hits', onPickChunk
         linkDirectionalParticleSpeed={0.006}
         enableNodeDrag={false}
         onNodeClick={drill as any}
+        onBackgroundClick={() => { if (activeIds.length) onClear?.() }}
         onNodeHover={(n: any) => setHover(n || null)}
       />
 
