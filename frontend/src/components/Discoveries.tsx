@@ -79,48 +79,48 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
       {/* ----------------------------------------------------- preferences */}
       <div className="panel">
         <div className="panel-head">
-          <span className="label">夜间 · 它自己找题</span>
+          <span className="label">夜间自动选题</span>
           {st?.running
-            ? <span className="label acc"><i className="live" /> 正在想</span>
+            ? <span className="label acc"><i className="live" /> 运行中</span>
             : <button className="pill ghost small" onClick={run} disabled={busy === 'run'}>立即运行</button>}
         </div>
 
         <div className="modes">
           <button className={`mode${p?.mode === 'auto' ? ' on' : ''}`}
                   onClick={() => patchPrefs({ mode: 'auto' })}>
-            <b>自动开庭</b>
-            <span>它自己找 n 个题，自己吵完。早上你看结果。</span>
+            <b>自动辩论</b>
+            <span>选题后直接完成辩论，早上查看结果。</span>
           </button>
           <button className={`mode${p?.mode === 'suggest' ? ' on' : ''}`}
                   onClick={() => patchPrefs({ mode: 'suggest' })}>
-            <b>只递给我</b>
-            <span>照样想 n 个，但一场都不开。等你点头。</span>
+            <b>仅提议</b>
+            <span>只把题目放进收件箱，由你决定是否辩论。</span>
           </button>
         </div>
 
         <div className="prefs-row">
-          <label><span className="label">每晚几个</span>
+          <label><span className="label">每晚数量</span>
             <input type="number" min={1} max={10} value={p?.ideas_per_night ?? 3}
                    onChange={e => patchPrefs({ ideas_per_night: Math.max(1, Math.min(10, +e.target.value)) })} /></label>
-          <label><span className="label">几点开始</span>
+          <label><span className="label">开始时间</span>
             <input type="number" min={0} max={23} value={p?.hour ?? 3}
                    onChange={e => patchPrefs({ hour: Math.max(0, Math.min(23, +e.target.value)) })} /></label>
-          <label><span className="label">整晚 token 上限</span>
+          <label><span className="label">每晚 token 上限</span>
             <input type="number" min={1000} step={10000} value={p?.token_budget ?? 200000}
                    onChange={e => patchPrefs({ token_budget: Math.max(1000, +e.target.value) })} /></label>
           <label className="switch">
             <input type="checkbox" checked={!!p?.enabled}
                    onChange={e => patchPrefs({ enabled: e.target.checked })} />
-            <span className="label">开着</span>
+            <span className="label">启用</span>
           </label>
         </div>
 
         <div className="prefs-note">
           <span className="label">
-            {p?.enabled ? `下一轮 ${st?.next_run ?? '—'}` : '已关闭 · 只在你点「立即运行」时跑'}
-            {p?.mode === 'auto' && ' · 只有自动开庭会花钱，上限是整晚的硬上限'}
+            {p?.enabled ? `下一次 ${st?.next_run ?? '—'}` : '已关闭，只在点击「立即运行」时执行'}
+            {p?.mode === 'auto' && ' · 自动辩论会消耗 token，以上限为准'}
           </span>
-          {p?.last_summary && <span className="label num">上一轮：{p.last_summary}</span>}
+          {p?.last_summary && <span className="label num">上次：{p.last_summary}</span>}
         </div>
       </div>
 
@@ -132,7 +132,7 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
         </div>
         {!inbox.length && (
           <div className="label">
-            {st?.running ? '正在想…' : '空的。它每晚跑一轮，或者按上面的「立即运行」。'}
+            {st?.running ? '运行中' : '暂无提议。每晚自动运行一次，也可以点击「立即运行」。'}
           </div>
         )}
         {inbox.map(i => (
@@ -142,14 +142,14 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
               {i.source?.brain_names?.length === 2 && (
                 <span className="label">{i.source.brain_names[0]} × {i.source.brain_names[1]}</span>
               )}
-              {i.debate_id && <span className="tag ok">已开庭</span>}
+              {i.debate_id && <span className="tag ok">已辩论</span>}
             </div>
             <div className="prop-motion">{i.text}</div>
             {i.source?.why && <div className="prop-why">{i.source.why}</div>}
 
             {i.source?.quotes?.length === 2 && (
               <details className="card-src">
-                <summary className="label">它是从哪两条碎片想到的</summary>
+                <summary className="label">来源碎片</summary>
                 {i.source.quotes.map((q, k) => (
                   <blockquote key={k}><b>{i.source!.brain_names[k]}</b><p>{q}</p></blockquote>
                 ))}
@@ -158,7 +158,7 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
 
             {filing === i.id ? (
               <div className="chips">
-                <button className="chip" onClick={() => keep(i, null)}>不归档</button>
+                <button className="chip" onClick={() => keep(i, null)}>不归类</button>
                 {brains.map(b => (
                   <button key={b.id} className="chip" onClick={() => keep(i, b.id)}>
                     <i style={{ background: b.color }} />{b.name}
@@ -168,12 +168,12 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
               </div>
             ) : (
               <div className="row-actions">
-                <button className="pill primary small" onClick={() => setFiling(i.id)}>收下 · 归到…</button>
+                <button className="pill primary small" onClick={() => setFiling(i.id)}>收下</button>
                 <button className="pill ghost small" onClick={() => rephrase(i)}>换一种说法</button>
                 <button className="pill ghost small" onClick={() => onDebate(i)}>
-                  {i.debate_id ? '看这场辩论' : '现在就吵'} <ArrowRight />
+                  {i.debate_id ? '查看辩论' : '开始辩论'} <ArrowRight />
                 </button>
-                <button className="pill ghost small" onClick={() => trash(i)}>不要</button>
+                <button className="pill ghost small" onClick={() => trash(i)}>丢弃</button>
               </div>
             )}
           </div>
@@ -183,18 +183,18 @@ export default function Discoveries({ brains, onDebate, onChanged }: {
       {/* ------------------------------------------------------ 弃稿箱 */}
       <div className="panel">
         <button className="panel-head as-btn" onClick={() => setShowTrash(v => !v)}>
-          <span className="label"><Trash /> 弃稿箱</span>
-          <span className="label num">{pad(trashed.length)} · {showTrash ? '收起' : '打开'}</span>
+          <span className="label"><Trash /> 已丢弃</span>
+          <span className="label num">{pad(trashed.length)} · {showTrash ? '收起' : '展开'}</span>
         </button>
         {showTrash && (
           trashed.length
             ? trashed.map(i => (
               <div key={i.id} className="recent">
                 <span className="rtext">{i.text || i.image?.caption || '（图片）'}</span>
-                <button className="pill ghost small" onClick={() => restore(i)}>捞回来</button>
+                <button className="pill ghost small" onClick={() => restore(i)}>恢复</button>
               </div>
             ))
-            : <div className="label">空的。丢掉的想法会留在这里，不会真的消失。</div>
+            : <div className="label">没有丢弃的想法。</div>
         )}
       </div>
     </div>

@@ -106,7 +106,7 @@ export default function SparkBar({
         <Glass className={`search-pill${pending ? ' busy' : ''}`}>
           <span className="s-ico"><Search /></span>
           <input
-            ref={inputRef} value={text} placeholder="此刻在想什么"
+            ref={inputRef} value={text} placeholder="记一个想法"
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
             onChange={e => setText(e.target.value)}
@@ -116,15 +116,15 @@ export default function SparkBar({
         </Glass>
         {showDrop && (
           <Glass className="panel drop">
-            <div className="panel-head"><span className="label">你记下的</span><span className="label num">{pad(ideas.length)}</span></div>
+            <div className="panel-head"><span className="label">已保存的想法</span><span className="label num">{pad(ideas.length)}</span></div>
             {ideas.slice(0, 6).map(i => (
               <button key={i.id} className="recent" onMouseDown={() => pick(i)}>
                 <span className={`dot ${i.enrichment}`} />
                 <span className="rtext">{i.text || i.image?.caption || '（图片）'}</span>
                 <span className="rmeta">
-                  {i.debate_id ? '已开庭'
+                  {i.debate_id ? '已辩论'
                     : i.enrichment === 'ready' ? `${pad(brainsHit(i))} 副脑`
-                    : i.enrichment === 'pending' ? '联想中' : '失败'}
+                    : i.enrichment === 'pending' ? '检索中' : '失败'}
                 </span>
               </button>
             ))}
@@ -135,7 +135,7 @@ export default function SparkBar({
       {selected && showResult && (
         <div className={`panel result${selected.enrichment === 'ready' ? '' : ' waiting'}`}>
           <div className="panel-head">
-            <span className="label">{selected.enrichment === 'ready' ? '问题骨架' : selected.enrichment === 'failed' ? '联想失败' : '正在联想'}</span>
+            <span className="label">{selected.enrichment === 'ready' ? '问题骨架' : selected.enrichment === 'failed' ? '检索失败' : '检索中'}</span>
             <button className="chip-btn small" aria-label="关闭" onClick={close}><Close /></button>
           </div>
           <div className="rc-quote">{selected.text}</div>
@@ -164,19 +164,19 @@ export default function SparkBar({
               </div>
               <div className="row-actions">
                 <button className="pill primary" onClick={() => onDebate(selected, wildness)}>
-                  {selected.debate_id ? '看这场辩论' : '开始辩论'} <ArrowRight />
+                  {selected.debate_id ? '查看辩论' : '开始辩论'} <ArrowRight />
                 </button>
                 {onRunExample && (
                   <button className="pill ghost small" onClick={onRunExample} disabled={running}>
-                    {running ? '开庭中' : '试一个例子'}
+                    {running ? '进行中' : '试一个例子'}
                   </button>
                 )}
               </div>
             </>
           ) : selected.enrichment === 'failed' ? (
-            <div className="label alert">联想失败了。改一句话再试，或者检查模型设置。</div>
+            <div className="label alert">检索失败。换个说法再试，或检查模型设置。</div>
           ) : (
-            <div className="label pulse">剥离领域名词 · 反相似度检索</div>
+            <div className="label pulse">正在提取问题结构并检索</div>
           )}
         </div>
       )}

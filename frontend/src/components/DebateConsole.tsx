@@ -73,18 +73,18 @@ export default function DebateConsole({ onDebate, onSpotlight, onHitBrains }: {
   return (
     <div className="console">
       <div className="panel">
-        <div className="panel-head"><span className="label">议题台 · 我来出题</span></div>
+        <div className="panel-head"><span className="label">出题</span></div>
         <p className="console-lede">
-          平时不用来这里 —— 它们每晚自己在星图里找题。这里是你想指定一个题目的时候用的。
+          指定一个题目，让四个副脑围绕它辩论。不指定的话，系统每晚会自己从笔记里选题。
         </p>
         <textarea ref={areaRef} className="eureka-text" value={text}
-                  placeholder="你想让四个副脑吵一个什么问题？"
+                  placeholder="想让它们讨论什么？"
                   onChange={e => setText(e.target.value)}
                   onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit() }} />
         <div className="row-actions end">
-          <span className="label">这条题目也会记进星图</span>
+          <span className="label">题目会作为想法保存</span>
           <button className="pill primary" onClick={submit} disabled={busy || !text.trim()}>
-            {busy ? '联想中' : '交给它们'} <kbd>⌘⏎</kbd>
+            {busy ? '检索中' : '提交'} <kbd>⌘⏎</kbd>
           </button>
         </div>
       </div>
@@ -92,8 +92,8 @@ export default function DebateConsole({ onDebate, onSpotlight, onHitBrains }: {
       {selected && (
         <div className={`panel${waiting ? ' waiting' : ''}`}>
           <div className="panel-head">
-            <span className="label">{waiting ? '正在联想' : '问题骨架'}</span>
-            <span className="label num">{selected.kind === 'motion' ? '我出的题' : '灵光'}</span>
+            <span className="label">{waiting ? '检索中' : '问题骨架'}</span>
+            <span className="label num">{selected.kind === 'motion' ? '题目' : '想法'}</span>
           </div>
           <div className="rc-quote">{selected.text}</div>
 
@@ -126,27 +126,27 @@ export default function DebateConsole({ onDebate, onSpotlight, onHitBrains }: {
               </div>
             </>
           ) : selected.enrichment === 'failed' ? (
-            <div className="label alert">联想失败了。改一句话再试，或者检查一下模型设置。</div>
+            <div className="label alert">检索失败。换个说法再试，或检查模型设置。</div>
           ) : (
-            <div className="label pulse">剥离领域名词 · 反相似度检索</div>
+            <div className="label pulse">正在提取问题结构并检索</div>
           )}
         </div>
       )}
 
       <div className="panel">
         <div className="panel-head">
-          <span className="label">你记下的</span><span className="label num">{pad(ideas.length)}</span>
+          <span className="label">已保存的想法</span><span className="label num">{pad(ideas.length)}</span>
         </div>
-        {ideas.length === 0 && <div className="label">还没有。用右下角的「灵光」记第一个。</div>}
+        {ideas.length === 0 && <div className="label">还没有想法。用右下角的按钮记录第一个。</div>}
         {ideas.slice(0, 12).map(i => (
           <button key={i.id} className={`recent${selected?.id === i.id ? ' on' : ''}`}
                   onClick={() => pick(i)}>
             <span className={`dot ${i.enrichment}`} />
             <span className="rtext">{i.text || i.image?.caption || '（图片）'}</span>
             <span className="rmeta">
-              {i.debate_id ? '已开庭'
+              {i.debate_id ? '已辩论'
                 : i.enrichment === 'ready' ? `${pad(brainsHit(i))} 副脑`
-                : i.enrichment === 'pending' ? '联想中' : '失败'}
+                : i.enrichment === 'pending' ? '检索中' : '失败'}
             </span>
           </button>
         ))}

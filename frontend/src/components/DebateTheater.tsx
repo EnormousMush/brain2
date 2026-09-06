@@ -62,18 +62,18 @@ export default function DebateTheater({
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [entries.length])
 
-  if (!debateId) return <div className="panel"><span className="label">正在准备辩论</span></div>
+  if (!debateId) return <div className="panel"><span className="label">准备中</span></div>
 
   const streaming = !ended
   const turns = entries.filter(e => e.kind === 'turn').length
   const pad = (n: number) => String(n).padStart(2, '0')
-  const status = ended ? (ended.reason === 'converged' ? '已收敛' : ended.reason === 'budget' ? '预算用尽' : '轮次用尽') : '进行中'
+  const status = ended ? (ended.reason === 'converged' ? '意见趋同' : ended.reason === 'budget' ? '用完预算' : '到达轮数') : '进行中'
 
   return (
     <div className="theater">
       <div className="panel motion-panel">
         <span className="label">辩题</span>
-        <h1 className={`motion${motion ? '' : ' pending'}`}>{motion || '主持人正在拟题'}</h1>
+        <h1 className={`motion${motion ? '' : ' pending'}`}>{motion || '正在生成辩题'}</h1>
         <div className="cast">
           {roles.map((r, i) => (
             <div key={r.role} className="cell">
@@ -86,10 +86,10 @@ export default function DebateTheater({
       </div>
 
       <div className="band inline">
-        <div className="cell"><span className="label">{streaming && <i className="live" />}round</span><span className="val">{pad(round)}</span></div>
-        <div className="cell"><span className="label">turns</span><span className="val">{pad(turns)}</span></div>
+        <div className="cell"><span className="label">{streaming && <i className="live" />}轮次</span><span className="val">{pad(round)}</span></div>
+        <div className="cell"><span className="label">发言</span><span className="val">{pad(turns)}</span></div>
         <div className="cell"><span className="label">tokens</span><span className="val">{tokens.toLocaleString()}</span></div>
-        <div className="cell"><span className="label">status</span><span className={`val${ended ? '' : ' acc'}`}>{status}</span></div>
+        <div className="cell"><span className="label">状态</span><span className={`val${ended ? '' : ' acc'}`}>{status}</span></div>
       </div>
 
       <div className="panel transcript">
@@ -105,12 +105,12 @@ export default function DebateTheater({
                 {e.t.stance && (
                   <span className={`tag ${e.t.stance}`}>{STANCE_GLYPH[e.t.stance]} {STANCE_CN[e.t.stance] ?? e.t.stance}</span>
                 )}
-                {e.t.novelty != null && <span className="label num">novelty {e.t.novelty.toFixed(2)}</span>}
+                {e.t.novelty != null && <span className="label num">新意 {e.t.novelty.toFixed(2)}</span>}
               </div>
               <div className="turn-body">{e.t.body}</div>
               {e.t.citations.length > 0 && (
                 <button className="link-btn" onClick={() => onCite(e.t.citations)}>
-                  引用 {e.t.citations.length} 条原文 · 在星图看
+                  引用了 {e.t.citations.length} 条原文 · 在星图查看
                 </button>
               )}
             </div>
@@ -122,7 +122,7 @@ export default function DebateTheater({
               <b>{ROLE_CN[e.role as Role] ?? e.role}</b>
             </div>
             <div className="turn-main">
-              <span className="tag reject">判定无效</span>
+              <span className="tag reject">无效发言</span>
               <span className="reason">{e.reason}</span>
             </div>
           </div>

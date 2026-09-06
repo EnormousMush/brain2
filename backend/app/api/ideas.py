@@ -63,7 +63,7 @@ def _save_image(idea_id: str, data_url: str, caption: str) -> dict | None:
     except (binascii.Error, ValueError):
         raise HTTPException(400, "image is not valid base64") from None
     if len(blob) > MAX_IMAGE_BYTES:
-        raise HTTPException(413, "图片太大了（请先缩到 6MB 以内）")
+        raise HTTPException(413, "图片超过 6MB")
     rel = f"idea_images/{idea_id}.{ext}"
     (DATA_DIR / rel).write_bytes(blob)
     return {"path": rel, "caption": caption[:200]}
@@ -96,7 +96,7 @@ async def enrich(idea_id: str, wildness: float = 0.5) -> None:
 async def create_idea(body: IdeaCreate, bg: BackgroundTasks):
     text = (body.text or "").strip()
     if not text and not body.image_data_url:
-        raise HTTPException(400, "想法不能是空的")
+        raise HTTPException(400, "想法内容不能为空")
     iid = nid("ida")
     image = _save_image(iid, body.image_data_url, body.image_caption) if body.image_data_url else None
     insert("ideas", dict(

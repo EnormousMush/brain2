@@ -81,7 +81,7 @@ async def run_once(prefs: NightPrefs | None = None) -> str:
     """One night. Safe to call by hand (「立即运行」) and by the scheduler."""
     global _running
     if _running:
-        return "上一轮还在跑"
+        return "上一次运行尚未结束"
     p = prefs or load_prefs()
     _running = True
     spent = 0
@@ -90,11 +90,11 @@ async def run_once(prefs: NightPrefs | None = None) -> str:
     try:
         pairs = discovery.find_pairs(p.ideas_per_night, p.wildness)
         if not pairs:
-            return _finish(p, "没找到新的连接可提 —— 要么笔记还太少，要么能连的都连过了。")
+            return _finish(p, "没有找到新的可提议组合：笔记太少，或可关联的组合已经用完。")
 
         for src in pairs:
             if spent >= p.token_budget:
-                stopped_early = f"（token 预算用完，只做了 {len(made)} 个）"
+                stopped_early = f"（token 预算已用完，只完成了 {len(made)} 个）"
                 break
             motion, why, tok = await discovery.phrase(src)
             spent += tok
@@ -103,16 +103,16 @@ async def run_once(prefs: NightPrefs | None = None) -> str:
 
             if p.mode == "auto":
                 if spent >= p.token_budget:
-                    stopped_early = f"（token 预算用完，后 {len(pairs) - len(made)} 个没开庭）"
+                    stopped_early = f"（token 预算已用完，其余 {len(pairs) - len(made)} 个未辩论）"
                     break
                 used, _ = await _hold_court(iid, motion, p.wildness, p.token_budget - spent)
                 spent += used
 
-        verb = "开了庭" if p.mode == "auto" else "记在收件箱"
-        return _finish(p, f"想了 {len(made)} 个新连接，{verb}。花了 {spent:,} tokens。{stopped_early}")
+        verb = "已完成辩论" if p.mode == "auto" else "已放入收件箱"
+        return _finish(p, f"提出了 {len(made)} 个新题目，{verb}。消耗 {spent:,} tokens。{stopped_early}")
     except Exception as e:  # noqa: BLE001 — a failed night must not kill the server
         log.exception("night run failed")
-        return _finish(p, f"这一轮失败了：{e}")
+        return _finish(p, f"本次运行失败：{e}")
     finally:
         _running = False
 

@@ -123,7 +123,7 @@ export default function App() {
         <div className="top-right">
           {!noBrains && (
             <button className="pill primary" onClick={runExample} disabled={running}>
-              <Sparkle /> {running ? '开庭中' : '试一个例子'}
+              <Sparkle /> {running ? '进行中' : '试一个例子'}
             </button>
           )}
           <Glass as="label" className="chip-btn" title="导入笔记" aria-label="导入笔记">
@@ -140,13 +140,13 @@ export default function App() {
 
       <Glass as="nav" className="rail" aria-label="导航">
         <button className={`rail-btn${view === 'home' ? ' active' : ''}`} title="星图" aria-label="星图" onClick={goHome}><MapIcon /></button>
-        <button className={`rail-btn${view === 'discover' ? ' active' : ''}`} title="发现 · 夜里想的" aria-label="发现"
+        <button className={`rail-btn${view === 'discover' ? ' active' : ''}`} title="发现" aria-label="发现"
                 onClick={() => setView('discover')}>
           <Inbox />
           {inboxCount > 0 && <i className="badge">{inboxCount > 9 ? '9+' : inboxCount}</i>}
         </button>
         <button className={`rail-btn${view === 'console' || view === 'debate' ? ' active' : ''}`}
-                title="议题台" aria-label="议题台"
+                title="出题" aria-label="出题"
                 onClick={() => setView(debateId ? 'debate' : 'console')}><DebateIcon /></button>
         <button className={`rail-btn${settings ? ' active' : ''}`} title="设置" aria-label="设置" onClick={() => setSettings(true)}><Sliders /></button>
       </Glass>
@@ -162,8 +162,8 @@ export default function App() {
               <div className="firstrun">
                 <div className="panel firstrun-panel">
                   <span className="label">00 · 开始</span>
-                  <h2>导入一段笔记，建立第一个副脑。</h2>
-                  <p>笔记会被切成碎片、按主题聚簇，并在星图上得到一个固定的位置。</p>
+                  <h2>导入一段笔记，建立第一个副脑</h2>
+                  <p>笔记会被切成碎片，按主题分组，并在星图上获得固定位置。</p>
                   <label className="pill primary">
                     <Upload /> 导入笔记
                     <input type="file" multiple accept=".md,.txt,.zip" hidden onChange={e => importFiles(e.target.files)} />
@@ -199,9 +199,9 @@ export default function App() {
           <div className="debate-view">
             <div className="debate-wrap">
               <div className="debate-title">
-                <span className="label">议题</span>
+                <span className="label">题目</span>
                 <span className="dt">{debateTitle}</span>
-                <button className="pill ghost small" onClick={() => setView('console')}>换一个题</button>
+                <button className="pill ghost small" onClick={() => setView('console')}>换一题</button>
               </div>
               <DebateTheater debateId={debateId} onCards={setCards} onActive={setActive}
                              onCite={ids => { setActive(ids); setView('home') }} />

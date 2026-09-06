@@ -16,7 +16,7 @@ export default function CardDeck({
   return (
     <div className="deck">
       <div className="deck-head">
-        <span className="label">结算</span>
+        <span className="label">结果</span>
         <h3>想法卡片</h3>
         <span className="label num">{pad(cards.length)}</span>
       </div>
@@ -46,17 +46,17 @@ export default function CardDeck({
               </div>
             )}
             {c.connection.length > 2 && (
-              <div className="label">+ {c.connection.length - 2} more fragment(s)</div>
+              <div className="label">另有 {c.connection.length - 2} 条原文</div>
             )}
 
             <div className="why"><span className="label acc">为什么是你</span><span className="why-t">{c.why_you}</span></div>
-            <div className="next"><span className="label">本周可做</span><span>{c.next_action}</span></div>
+            <div className="next"><span className="label">本周可以做的一件事</span><span>{c.next_action}</span></div>
 
             <div className="scores">
               <div className="hero"><span className="kpi-v big">{c.scores.total.toFixed(2)}</span><span className="label">总分</span></div>
-              <Score label="surprise" v={c.scores.surprise} />
-              <Score label="credibility" v={c.scores.credibility} />
-              <Score label="feasibility" v={c.scores.feasibility} />
+              <Score label="惊喜度" v={c.scores.surprise} />
+              <Score label="可信度" v={c.scores.credibility} />
+              <Score label="可行性" v={c.scores.feasibility} />
               <div className="row-actions">
                 <button className="pill ghost small" onClick={() => onReplay(c.connection.map(x => x.chunk_id))}>星图回放</button>
                 <button className={`pill ${c.saved ? 'primary' : 'ghost'} small`}
@@ -67,7 +67,7 @@ export default function CardDeck({
             </div>
 
             <details className="card-src">
-              <summary className="label">原文出处 · {pad(c.connection.length)}</summary>
+              <summary className="label">原文 · {pad(c.connection.length)}</summary>
               {c.connection.map(x => (
                 <blockquote key={x.chunk_id}>
                   <b>{x.brain_name}</b>{x.source_path && <i>{x.source_path}</i>}

@@ -55,7 +55,7 @@ export default function SettingsDrawer({
       </div>
 
       <section>
-        <h4>模型（你自己的 Key，存在本机）</h4>
+        <h4>模型与 API Key（仅保存在本机）</h4>
         <div className="presets">
           {Object.keys(PRESETS).map(k =>
             <button key={k} className="pill ghost small" onClick={() => addPreset(k)}>+ {k}</button>)}
@@ -78,12 +78,12 @@ export default function SettingsDrawer({
           </div>
         ))}
         <button className="pill primary" onClick={save}>保存</button>
-        {s?.offline && <p className="warn">当前是离线模式（WEAVE_OFFLINE=1），全部走 mock，不联网。</p>}
+        {s?.offline && <p className="warn">当前为离线模式（WEAVE_OFFLINE=1），使用本地模拟模型，不联网。</p>}
       </section>
 
       <section>
-        <h4>副脑 → 用哪个模型代理</h4>
-        <p className="hint">不同副脑绑不同厂商，辩论时才有真正的异质性。</p>
+        <h4>每个副脑使用的模型</h4>
+        <p className="hint">不同副脑可以使用不同的模型，辩论时观点差异会更明显。</p>
         {brains.map((b, i) => (
           <div key={b.id} className="bind">
             <span className={`chip d${i % 3}`}>{b.name}</span>
@@ -102,7 +102,7 @@ export default function SettingsDrawer({
         <ul>{privacy?.statements.map((t, i) => <li key={i}>{t}</li>)}</ul>
         <code>{privacy?.storage}</code>
         <button className="pill danger" onClick={async () => {
-          if (!confirm('这会永久删除所有副脑、碎念、辩论记录。继续？')) return
+          if (!confirm('将永久删除所有副脑、想法和辩论记录，无法恢复。继续？')) return
           await api.wipe(); onBrainsChanged()
         }}>删除我的副脑</button>
       </section>

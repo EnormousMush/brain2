@@ -68,7 +68,7 @@ export interface NightStatus {
   next_run?: string | null
 }
 export const STRATEGY_CN: Record<string, string> = {
-  unconnected: '从未接通过', cold: '冷区',
+  unconnected: '未曾关联', cold: '较少涉及',
 }
 
 export interface Claim {

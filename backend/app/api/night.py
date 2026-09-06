@@ -44,7 +44,7 @@ def run_now(bg: BackgroundTasks):
     """「立即运行」. Returns at once; poll GET /api/night for `running` + summary.
     Ignores `last_run`, so you can demo it twice in one day."""
     if runner.is_running():
-        raise HTTPException(409, "上一轮还在跑")
+        raise HTTPException(409, "上一次运行尚未结束")
     bg.add_task(runner.run_once)
     return _status(runner.load_prefs())
 
@@ -60,7 +60,7 @@ async def rephrase(idea_id: str):
     if not d:
         raise HTTPException(404, "no such idea")
     if not d.get("source"):
-        raise HTTPException(400, "只有 agent 的提案能换说法")
+        raise HTTPException(400, "只有系统提议可以改写")
     src = IdeaSource(**d["source"])
     motion, why, _ = await discovery.phrase(src, temperature=1.0)
     src.why = why

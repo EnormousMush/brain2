@@ -29,7 +29,7 @@ function downscale(file: File): Promise<{ dataUrl: string; w: number; h: number 
       c.getContext('2d')!.drawImage(img, 0, 0, w, h)
       resolve({ dataUrl: c.toDataURL('image/jpeg', 0.82), w, h })
     }
-    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('读不了这张图')) }
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('无法读取这张图片')) }
     img.src = url
   })
 }
@@ -77,7 +77,7 @@ export default function Eureka({ brains, onCreated }: {
 
   const submit = async () => {
     if (busy) return
-    if (!text.trim() && !image) { setErr('写点什么，或者放一张图'); return }
+    if (!text.trim() && !image) { setErr('请输入文字或添加图片'); return }
     setBusy(true); setErr('')
     try {
       let bid: string | null = brainId || null
@@ -100,8 +100,8 @@ export default function Eureka({ brains, onCreated }: {
 
   if (!open) {
     return (
-      <button className="eureka-fab" onClick={() => setOpen(true)} title="记一个想法 ⌘K">
-        <Bulb /><span>灵光</span>
+      <button className="eureka-fab" onClick={() => setOpen(true)} title="记录想法 ⌘K">
+        <Bulb /><span>想法</span>
       </button>
     )
   }
@@ -109,14 +109,14 @@ export default function Eureka({ brains, onCreated }: {
   return (
     <>
       <div className="scrim" onClick={() => setOpen(false)} />
-      <div className="panel eureka" role="dialog" aria-label="记一个想法">
+      <div className="panel eureka" role="dialog" aria-label="记录想法">
         <div className="panel-head">
-          <span className="label">灵光 · 记一个想法</span>
+          <span className="label">记录想法</span>
           <button className="chip-btn small" aria-label="关闭" onClick={() => setOpen(false)}><Close /></button>
         </div>
 
         <textarea ref={areaRef} className="eureka-text" value={text} onPaste={onPaste}
-                  placeholder="几个字，或者一整段。写完就走，剩下的交给它。"
+                  placeholder="几个字或一段话都可以"
                   onChange={e => setText(e.target.value)}
                   onKeyDown={e => {
                     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()
@@ -126,7 +126,7 @@ export default function Eureka({ brains, onCreated }: {
           <div className="eureka-img">
             <img src={image.dataUrl} alt="" />
             <div className="eureka-img-meta">
-              <input value={caption} placeholder="给这张图一句说明"
+              <input value={caption} placeholder="图片说明"
                      onChange={e => setCaption(e.target.value)} />
               <div className="row-actions">
                 <span className="label num">{image.w}×{image.h}</span>
@@ -136,17 +136,17 @@ export default function Eureka({ brains, onCreated }: {
           </div>
         ) : (
           <label className="eureka-drop">
-            <ImageIcon /> 加一张图（也可以直接粘贴）
+            <ImageIcon /> 添加图片，或直接粘贴
             <input type="file" accept="image/*" hidden
                    onChange={e => pickImage(e.target.files?.[0])} />
           </label>
         )}
 
         <div className="eureka-file">
-          <span className="label">归到</span>
+          <span className="label">归类到</span>
           <div className="chips">
             <button className={`chip${!brainId && !newBrain ? ' on' : ''}`}
-                    onClick={() => { setBrainId(''); setNewBrain('') }}>不归档</button>
+                    onClick={() => { setBrainId(''); setNewBrain('') }}>不归类</button>
             {brains.map(b => (
               <button key={b.id} className={`chip${brainId === b.id ? ' on' : ''}`}
                       onClick={() => { setBrainId(b.id); setNewBrain('') }}>
@@ -154,15 +154,15 @@ export default function Eureka({ brains, onCreated }: {
               </button>
             ))}
           </div>
-          <input className="eureka-new" value={newBrain} placeholder="或新建一个副脑…"
+          <input className="eureka-new" value={newBrain} placeholder="或新建副脑"
                  onChange={e => { setNewBrain(e.target.value); setBrainId('') }} />
         </div>
 
         {err && <div className="label alert">{err}</div>}
         <div className="row-actions end">
-          <span className="label">{brainId || newBrain ? '会落在那个副脑边上' : '会浮在星图正中'}</span>
+          <span className="label">{brainId || newBrain ? '将显示在该副脑旁' : '将显示在星图中央'}</span>
           <button className="pill primary" onClick={submit} disabled={busy}>
-            {busy ? '记下中' : '记下'} <kbd>⌘⏎</kbd>
+            {busy ? '保存中' : '保存'} <kbd>⌘⏎</kbd>
           </button>
         </div>
       </div>
