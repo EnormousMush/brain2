@@ -504,3 +504,9 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .trash-btn .badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
   background: var(--accent); color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 600; display: grid; place-items: center; }
 :root[data-theme="dark"] .trash-btn .badge { color: #0A1017; }
+
+/* ---- 辩论角色图标：贴着角色名，16px，比文字淡一档 -------------------------- */
+.role-name { display: inline-flex; align-items: center; gap: 6px; }
+.role-name svg { width: 16px; height: 16px; color: var(--fg-2); flex: none; }
+.cast .role-name svg { color: var(--accent); }
+.turn.rejected .role-name svg { color: var(--fg-3); }

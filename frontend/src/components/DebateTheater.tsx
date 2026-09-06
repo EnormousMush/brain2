@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { streamDebate } from '../api'
 import { ROLE_CN, STANCE_CN } from '../types'
+import { RoleIcon } from './Icons'
 import type { Card, Role, Turn } from '../types'
 
 /**
@@ -78,7 +79,7 @@ export default function DebateTheater({
           {roles.map((r, i) => (
             <div key={r.role} className="cell">
               <span className="label">{pad(i + 1)} {ROLE_EN[r.role]}</span>
-              <span className="val">{ROLE_CN[r.role]}</span>
+              <span className="val role-name"><RoleIcon role={r.role} />{ROLE_CN[r.role]}</span>
               <span className="sub acc">{r.brain_name ?? '—'}</span>
             </div>
           ))}
@@ -97,7 +98,7 @@ export default function DebateTheater({
           <div key={e.t.id} className="turn">
             <div className="turn-side">
               <span className="label num">{pad(e.t.round)}.{pad(e.t.seq + 1)}</span>
-              <b>{ROLE_CN[e.t.role]}</b>
+              <b className="role-name"><RoleIcon role={e.t.role} />{ROLE_CN[e.t.role]}</b>
               <span className="brain">{e.t.brain_name}</span>
             </div>
             <div className="turn-main">
@@ -119,7 +120,7 @@ export default function DebateTheater({
           <div key={`x${i}`} className="turn rejected">
             <div className="turn-side">
               <span className="label num">{pad(e.round)}.{pad(e.seq)}</span>
-              <b>{ROLE_CN[e.role as Role] ?? e.role}</b>
+              <b className="role-name"><RoleIcon role={e.role as Role} />{ROLE_CN[e.role as Role] ?? e.role}</b>
             </div>
             <div className="turn-main">
               <span className="tag reject">判定无效</span>
