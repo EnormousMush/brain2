@@ -39,9 +39,13 @@ then
   echo "MongoDB ok at $WEAVE_MONGO_URI (db=$WEAVE_MONGO_DB)"
 else
   echo "⚠  MongoDB not reachable at $WEAVE_MONGO_URI — running on an IN-MEMORY store."
-  echo "   Start one with:  docker compose up -d mongo   (then re-run ./run.sh)"
+  echo "   The server seeds itself from demo/seed_notes/ on every start; ideas and"
+  echo "   night prefs will NOT survive a restart. For persistence start a mongod:"
+  echo "   docker compose up -d mongo   (then re-run ./run.sh)"
 fi
 
+# Against a real MongoDB this loads demo/seed_notes/ once. Against the in-memory
+# fallback it is a no-op (that store is per-process; the server seeds itself).
 (cd backend && .venv/bin/python seed.py) || true
 (cd backend && .venv/bin/uvicorn app.main:app --port 8000 --reload) &
 BACK=$!

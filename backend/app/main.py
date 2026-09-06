@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api import brains, debates, graph, ideas, night, settings
 from .config import CORS_ORIGINS, OFFLINE
 from .db import backend, init_db
+from .demo_seed import seed_demo
 from .night import runner as night_runner
 
 logging.basicConfig(level=logging.INFO,
@@ -16,6 +17,10 @@ logging.basicConfig(level=logging.INFO,
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
+    # No mongod → in-memory store, private to THIS process. seed.py can't reach it,
+    # so load demo/seed_notes/ here or the 星图 comes up empty every single start.
+    if backend() == "memory":
+        await seed_demo()
     logging.getLogger("weave").info("ready. offline=%s db=%s", OFFLINE, backend())
     # 夜间发现：一个分钟级的 asyncio 循环，不引入调度器依赖。后端不开机就不跑 ——
     # 对一个完全跑在用户自己机器上的东西，这是诚实的行为。

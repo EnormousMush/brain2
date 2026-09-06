@@ -63,3 +63,12 @@ export const Inbox = () => (
   <svg {...base}><path d="M3 13h5l1.5 3h5L16 13h5" />
     <path d="M5.5 5h13l2.5 8v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-5l2.5-8z" /></svg>
 )
+export const Check = () => (
+  <svg {...base}><path d="M5 12.5l4.5 4.5L19 7" /></svg>
+)
+export const Rewind = () => (
+  <svg {...base}><path d="M4 12a8 8 0 1 0 2.4-5.7" /><path d="M4 4v5h5" /></svg>
+)
+export const Undo = () => (
+  <svg {...base}><path d="M9 14L4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></svg>
+)

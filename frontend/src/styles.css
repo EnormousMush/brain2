@@ -405,11 +405,11 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .eureka-img-meta { display: grid; gap: 8px; }
 .eureka-img-meta input { width: 100%; }
 .eureka-file { display: grid; gap: 8px; }
-.eureka-file .chips, .prop .chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.eureka-file .chip, .prop .chips .chip { cursor: pointer; transition: all var(--fast); }
-.eureka-file .chip i, .prop .chips .chip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.eureka-file .chips, .prop .chips, .swipe-file { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.eureka-file .chip, .prop .chips .chip, .swipe-file .chip { cursor: pointer; transition: all var(--fast); }
+.eureka-file .chip i, .prop .chips .chip i, .swipe-file .chip i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .eureka-file .chip.on { background: var(--pill); color: var(--pill-fg); border-color: var(--pill); }
-.prop .chips .chip:hover { border-color: var(--accent); color: var(--accent); }
+.prop .chips .chip:hover, .swipe-file .chip:hover { border-color: var(--accent); color: var(--accent); }
 .eureka-new { width: 100%; font-size: 12px; }
 .row-actions.end { justify-content: space-between; align-items: center; }
 .eureka kbd, .console kbd { font-family: var(--mono); font-size: 10px; opacity: .7; }
@@ -451,3 +451,56 @@ input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px;
 .seg button:hover { color: var(--fg); }
 .seg button.on { background: var(--pill); color: var(--pill-fg); }
 @media (max-width: 900px) { .eureka-fab span { display: none; } .eureka-fab { padding: 0 13px; } }
+
+/* ---- 收件箱 · 一张一张来 (swipe deck) ---------------------------------- */
+.swipe-stack { position: relative; margin: 6px 0 4px; }
+.swipe-ghost { position: absolute; inset: 0; border-radius: 16px; border: 1px solid var(--line-2); background: var(--panel-2);
+  pointer-events: none; transform-origin: 50% 100%; }
+.swipe-ghost.g1 { transform: translateY(10px) scale(.965); opacity: .7; }
+.swipe-ghost.g2 { transform: translateY(20px) scale(.93); opacity: .4; }
+.swipe-card { position: relative; display: grid; gap: 10px; padding: 18px 20px 16px; border-radius: 16px;
+  border: 1px solid var(--line-2); background: var(--panel); box-shadow: var(--surface-shadow);
+  animation: swipeIn var(--slow) var(--ease); will-change: transform, opacity; }
+.swipe-card.busy { pointer-events: none; }
+.swipe-card .prop-motion { font-size: 17px; }
+.swipe-card .swipe-idx { position: absolute; top: 14px; right: 16px; }
+.swipe-card.fly-left  { animation: flyLeft  var(--slow) var(--ease) forwards; }
+.swipe-card.fly-right { animation: flyRight var(--slow) var(--ease) forwards; }
+.swipe-card.fly-up    { animation: flyUp    var(--slow) var(--ease) forwards; }
+.swipe-card.rewind    { animation: rewind   var(--slow) var(--ease); }
+@keyframes swipeIn  { from { opacity: 0; transform: translateY(14px) scale(.965); } to { opacity: 1; transform: none; } }
+@keyframes flyLeft  { to { opacity: 0; transform: translate(-70%, 6%) rotate(-10deg); } }
+@keyframes flyRight { to { opacity: 0; transform: translate(70%, 6%) rotate(10deg); } }
+@keyframes flyUp    { to { opacity: 0; transform: translateY(-40%) scale(.9); } }
+@keyframes rewind   { 0% { transform: none; } 35% { transform: translateX(-18px) rotate(-3deg); opacity: .5; } 100% { transform: none; opacity: 1; } }
+
+.swipe-actions { display: flex; align-items: center; justify-content: center; gap: 22px; margin-top: 22px; }
+.swipe-btn { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line-2); background: var(--glass); backdrop-filter: var(--blur); -webkit-backdrop-filter: var(--blur);
+  color: var(--fg-2); transition: transform var(--fast), border-color var(--fast), color var(--fast), background var(--fast); }
+.swipe-btn svg { width: 22px; height: 22px; }
+.swipe-btn.big { width: 62px; height: 62px; }
+.swipe-btn.big svg { width: 26px; height: 26px; }
+.swipe-btn:hover { transform: translateY(-2px) scale(1.06); }
+.swipe-btn:active { transform: scale(.94); }
+.swipe-btn.no { color: var(--alert); border-color: rgba(229,72,77,.4); }
+.swipe-btn.no:hover { background: var(--alert); color: #fff; border-color: var(--alert); }
+.swipe-btn.yes { color: var(--ok); border-color: rgba(59,175,122,.45); }
+.swipe-btn.yes:hover { background: var(--ok); color: #fff; border-color: var(--ok); }
+.swipe-btn.redo:hover { color: var(--accent); border-color: var(--accent-line); }
+.swipe-btn.restore { color: var(--accent); border-color: var(--accent-line); }
+.swipe-btn.restore:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+:root[data-theme="dark"] .swipe-btn.restore:hover, :root[data-theme="dark"] .swipe-btn.yes:hover { color: #0A1017; }
+.swipe-btn:disabled { opacity: .4; pointer-events: none; }
+.swipe-hints { display: flex; justify-content: center; gap: 22px; margin-top: 8px; }
+.swipe-hints .label { width: 52px; text-align: center; }
+.swipe-hints .label.w { width: 62px; }
+.swipe-more { display: flex; justify-content: center; margin-top: 10px; }
+.swipe-empty { padding: 26px 0 14px; text-align: center; }
+.swipe-file { justify-content: center; margin-top: 20px; }
+
+.trash-btn { position: relative; }
+.trash-btn.on { color: var(--fg); border-color: var(--line-2); background: var(--panel-2); }
+.trash-btn .badge { position: absolute; top: -4px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--accent); color: #fff; font-family: var(--mono); font-size: 10px; font-weight: 600; display: grid; place-items: center; }
+:root[data-theme="dark"] .trash-btn .badge { color: #0A1017; }
