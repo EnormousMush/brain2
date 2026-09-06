@@ -2,7 +2,10 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+from pathlib import Path
+
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import brains, debates, graph, ideas, night, settings
@@ -48,3 +51,10 @@ app.include_router(settings.privacy)
 @app.get("/api/health")
 def health():
     return {"ok": True, "offline": OFFLINE, "db": backend()}
+
+
+# Single-container deploys (ModelScope 创空间, docker) build the frontend into
+# frontend/dist and serve it from the same process. Dev keeps using Vite.
+_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if _DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="ui")
