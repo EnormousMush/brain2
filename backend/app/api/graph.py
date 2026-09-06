@@ -76,11 +76,13 @@ def _seed_links(idea_ids: set[str], to_brain: bool) -> list[GraphLink]:
 
 
 def _brain_size(b: dict) -> float:
-    """Radius grows with the square root of the fragment count, then a
-    deterministic ±18% per brain so equal-sized brains still differ."""
+    """Radius grows with the log of the fragment count (a 1600-fragment vault
+    must not eclipse a 15-note one), then a deterministic ±18% per brain so
+    equal-sized brains still differ."""
+    import math
     n = b.get("chunk_count") or 0
     seed = int(hashlib.sha1(b["id"].encode()).hexdigest()[:6], 16) / 0xFFFFFF   # 0..1
-    return round((2.4 + 1.9 * n ** 0.5) * (0.82 + 0.36 * seed), 2)
+    return round((3.0 + 1.7 * math.log1p(n)) * (0.82 + 0.36 * seed), 2)
 
 
 @router.get("", response_model=GraphResponse)
