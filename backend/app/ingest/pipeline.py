@@ -112,8 +112,10 @@ def split_text(text: str, target: int = CHUNK_TARGET, overlap: int = CHUNK_OVERL
                 out.append(buf)
             while len(p) > target * 1.6:
                 cut = p.rfind("。", 0, target) + 1 or p.rfind(". ", 0, target) + 1 or target
+                if cut <= overlap:            # a 。 near the start would not advance: hard wrap instead
+                    cut = target
                 out.append(p[:cut].strip())
-                p = p[max(cut - overlap, 0):]
+                p = p[cut - overlap:]
             buf = p
         if buf:
             out.append(buf)
